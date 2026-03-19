@@ -6,10 +6,10 @@ from typing import TYPE_CHECKING
 
 from protocol.message import Message
 from protocol import replies
+from server.channel import Channel
 
 if TYPE_CHECKING:
     from server.ircd import IRCd
-    from server.channel import Channel
 
 
 class Client:
@@ -157,3 +157,201 @@ class Client:
             "o",
             "o",
         )
+
+    async def _handle_join(self, msg: Message) -> None:
+        if not self._registered:
+            return
+        if not msg.params:
+            await self.send_numeric(
+                replies.ERR_NEEDMOREPARAMS, "JOIN", "Not enough parameters"
+            )
+            return
+
+        channel_name = msg.params[0]
+        if not channel_name.startswith("#"):
+            return
+
+        channel = self.server.get_or_create_channel(channel_name)
+        if self in channel.members:
+            return
+
+        channel.add(self)
+        self.channels.add(channel)
+
+        # Notify all channel members (including self)
+        join_msg = Message(
+            prefix=self.prefix, command="JOIN", params=[channel_name]
+        )
+        for member in channel.members:
+            await member.send(join_msg)
+
+        # Send topic if set
+        if channel.topic:
+            await self.send_numeric(
+                replies.RPL_TOPIC, channel_name, channel.topic
+            )
+
+        # Send names list
+        await self._send_names(channel)
+
+    async def _handle_part(self, msg: Message) -> None:
+        if not msg.params:
+            await self.send_numeric(
+                replies.ERR_NEEDMOREPARAMS, "PART", "Not enough parameters"
+            )
+            return
+
+        channel_name = msg.params[0]
+        reason = msg.params[1] if len(msg.params) > 1 else ""
+
+        channel = self.server.channels.get(channel_name)
+        if not channel or self not in channel.members:
+            await self.send_numeric(
+                replies.ERR_NOTONCHANNEL,
+                channel_name,
+                "You're not on that channel",
+            )
+            return
+
+        part_params = [channel_name, reason] if reason else [channel_name]
+        part_msg = Message(
+            prefix=self.prefix, command="PART", params=part_params
+        )
+        for member in channel.members:
+            await member.send(part_msg)
+
+        channel.remove(self)
+        self.channels.discard(channel)
+
+        if not channel.members:
+            del self.server.channels[channel_name]
+
+    async def _handle_topic(self, msg: Message) -> None:
+        if not msg.params:
+            await self.send_numeric(
+                replies.ERR_NEEDMOREPARAMS, "TOPIC", "Not enough parameters"
+            )
+            return
+
+        channel_name = msg.params[0]
+        channel = self.server.channels.get(channel_name)
+        if not channel or self not in channel.members:
+            await self.send_numeric(
+                replies.ERR_NOTONCHANNEL,
+                channel_name,
+                "You're not on that channel",
+            )
+            return
+
+        if len(msg.params) == 1:
+            # Query topic
+            if channel.topic:
+                await self.send_numeric(
+                    replies.RPL_TOPIC, channel_name, channel.topic
+                )
+            else:
+                await self.send_numeric(
+                    replies.RPL_NOTOPIC, channel_name, "No topic is set"
+                )
+        else:
+            # Set topic
+            channel.topic = msg.params[1]
+            topic_msg = Message(
+                prefix=self.prefix,
+                command="TOPIC",
+                params=[channel_name, channel.topic],
+            )
+            for member in channel.members:
+                await member.send(topic_msg)
+
+    async def _handle_names(self, msg: Message) -> None:
+        if not msg.params:
+            return
+        channel_name = msg.params[0]
+        channel = self.server.channels.get(channel_name)
+        if channel:
+            await self._send_names(channel)
+
+    async def _send_names(self, channel: Channel) -> None:
+        nicks = " ".join(m.nick for m in channel.members)
+        await self.send_numeric(
+            replies.RPL_NAMREPLY, "=", channel.name, nicks
+        )
+        await self.send_numeric(
+            replies.RPL_ENDOFNAMES, channel.name, "End of /NAMES list"
+        )
+
+    async def _handle_privmsg(self, msg: Message) -> None:
+        if len(msg.params) < 2:
+            await self.send_numeric(
+                replies.ERR_NEEDMOREPARAMS, "PRIVMSG", "Not enough parameters"
+            )
+            return
+
+        target = msg.params[0]
+        text = msg.params[1]
+        relay = Message(
+            prefix=self.prefix, command="PRIVMSG", params=[target, text]
+        )
+
+        if target.startswith("#"):
+            channel = self.server.channels.get(target)
+            if not channel:
+                await self.send_numeric(
+                    replies.ERR_NOSUCHCHANNEL, target, "No such channel"
+                )
+                return
+            if self not in channel.members:
+                await self.send_numeric(
+                    replies.ERR_CANNOTSENDTOCHAN, target, "Cannot send to channel"
+                )
+                return
+            for member in channel.members:
+                if member is not self:
+                    await member.send(relay)
+        else:
+            recipient = self.server.clients.get(target)
+            if not recipient:
+                await self.send_numeric(
+                    replies.ERR_NOSUCHNICK, target, "No such nick"
+                )
+                return
+            await recipient.send(relay)
+
+    async def _handle_notice(self, msg: Message) -> None:
+        # Same as PRIVMSG but no error replies per RFC 2812
+        if len(msg.params) < 2:
+            return
+
+        target = msg.params[0]
+        text = msg.params[1]
+        relay = Message(
+            prefix=self.prefix, command="NOTICE", params=[target, text]
+        )
+
+        if target.startswith("#"):
+            channel = self.server.channels.get(target)
+            if not channel:
+                return
+            for member in channel.members:
+                if member is not self:
+                    await member.send(relay)
+        else:
+            recipient = self.server.clients.get(target)
+            if recipient:
+                await recipient.send(relay)
+
+    async def _handle_quit(self, msg: Message) -> None:
+        reason = msg.params[0] if msg.params else "Quit"
+        quit_msg = Message(
+            prefix=self.prefix, command="QUIT", params=[reason]
+        )
+
+        notified: set[Client] = set()
+        for channel in self.channels:
+            for member in channel.members:
+                if member is not self and member not in notified:
+                    await member.send(quit_msg)
+                    notified.add(member)
+
+        raise ConnectionError("Client quit")
