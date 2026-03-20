@@ -336,48 +336,52 @@ class Client:
             )
             return
 
-        if len(msg.params) < 3:
-            await self.send_numeric(
-                replies.ERR_NEEDMOREPARAMS, "MODE", "Not enough parameters"
-            )
-            return
-
-        target_nick = msg.params[2]
-        target_client = self.server.clients.get(target_nick)
-        if not target_client or target_client not in channel.members:
-            await self.send_numeric(
-                replies.ERR_USERNOTINCHANNEL,
-                target_nick,
-                channel_name,
-                "They aren't on that channel",
-            )
-            return
+        param_queue = list(msg.params[2:])
+        param_modes = {"o", "v"}
 
         adding = True
         applied_modes = []
+        applied_nicks: list[str] = []
         for ch in modestring:
             if ch == "+":
                 adding = True
             elif ch == "-":
                 adding = False
-            elif ch == "o":
-                if adding:
-                    channel.operators.add(target_client)
-                else:
-                    channel.operators.discard(target_client)
-                applied_modes.append(("+" if adding else "-") + "o")
-            elif ch == "v":
-                if adding:
-                    channel.voiced.add(target_client)
-                else:
-                    channel.voiced.discard(target_client)
-                applied_modes.append(("+" if adding else "-") + "v")
+            elif ch in param_modes:
+                if not param_queue:
+                    continue
+                target_nick = param_queue.pop(0)
+                target_client = self.server.clients.get(target_nick)
+                if not target_client or target_client not in channel.members:
+                    await self.send_numeric(
+                        replies.ERR_USERNOTINCHANNEL,
+                        target_nick,
+                        channel_name,
+                        "They aren't on that channel",
+                    )
+                    continue
+                if ch == "o":
+                    if adding:
+                        channel.operators.add(target_client)
+                    else:
+                        channel.operators.discard(target_client)
+                elif ch == "v":
+                    if adding:
+                        channel.voiced.add(target_client)
+                    else:
+                        channel.voiced.discard(target_client)
+                applied_modes.append(("+" if adding else "-") + ch)
+                applied_nicks.append(target_nick)
+
+        # Auto-promote if no operators remain
+        if not channel.operators and channel.members:
+            channel.operators.add(min(channel.members, key=lambda m: m.nick))
 
         if applied_modes:
             mode_msg = Message(
                 prefix=self.prefix,
                 command="MODE",
-                params=[channel_name, "".join(applied_modes), target_nick],
+                params=[channel_name, "".join(applied_modes)] + applied_nicks,
             )
             for member in list(channel.members):
                 await member.send(mode_msg)

@@ -226,3 +226,102 @@ async def test_part_removes_from_modes(server, make_client):
     names_line = [l for l in lines if "353" in l][0]
     # claude should not have @ after rejoin
     assert "@testserv-claude" not in names_line
+
+
+@pytest.mark.asyncio
+async def test_multi_mode_different_targets(server, make_client):
+    """MODE #chan +ov nick1 nick2 grants op to nick1 and voice to nick2."""
+    op = await make_client(nick="testserv-ori", user="ori")
+    await op.send("JOIN #general")
+    await op.recv_all(timeout=0.5)
+
+    nick1 = await make_client(nick="testserv-alice", user="alice")
+    await nick1.send("JOIN #general")
+    await nick1.recv_all(timeout=0.5)
+    await op.recv_all(timeout=0.5)
+
+    nick2 = await make_client(nick="testserv-bob", user="bob")
+    await nick2.send("JOIN #general")
+    await nick2.recv_all(timeout=0.5)
+    await op.recv_all(timeout=0.5)
+    await nick1.recv_all(timeout=0.5)
+
+    await op.send("MODE #general +ov testserv-alice testserv-bob")
+    await op.recv_all(timeout=0.5)
+
+    await op.send("NAMES #general")
+    lines = await op.recv_all(timeout=1.0)
+    names_line = [l for l in lines if "353" in l][0]
+    assert "@testserv-alice" in names_line
+    assert "+testserv-bob" in names_line
+
+
+@pytest.mark.asyncio
+async def test_multi_mode_insufficient_params(server, make_client):
+    """MODE #chan +ov nick1 applies +o to nick1, skips +v (no param)."""
+    op = await make_client(nick="testserv-ori", user="ori")
+    await op.send("JOIN #general")
+    await op.recv_all(timeout=0.5)
+
+    nick1 = await make_client(nick="testserv-alice", user="alice")
+    await nick1.send("JOIN #general")
+    await nick1.recv_all(timeout=0.5)
+    await op.recv_all(timeout=0.5)
+
+    await op.send("MODE #general +ov testserv-alice")
+    await op.recv_all(timeout=0.5)
+
+    await op.send("NAMES #general")
+    lines = await op.recv_all(timeout=1.0)
+    names_line = [l for l in lines if "353" in l][0]
+    # alice got op but not voice (no second param)
+    assert "@testserv-alice" in names_line
+    assert "+testserv-alice" not in names_line
+
+
+@pytest.mark.asyncio
+async def test_last_op_leaves_autopromotes(server, make_client):
+    """When the last operator PARTs, a remaining member is auto-promoted."""
+    op = await make_client(nick="testserv-ori", user="ori")
+    await op.send("JOIN #general")
+    await op.recv_all(timeout=0.5)
+
+    member = await make_client(nick="testserv-claude", user="claude")
+    await member.send("JOIN #general")
+    await member.recv_all(timeout=0.5)
+    await op.recv_all(timeout=0.5)
+
+    # Op leaves
+    await op.send("PART #general")
+    await op.recv_all(timeout=0.5)
+    await member.recv_all(timeout=0.5)
+
+    # Remaining member should now be op
+    await member.send("NAMES #general")
+    lines = await member.recv_all(timeout=1.0)
+    names_line = [l for l in lines if "353" in l][0]
+    assert "@testserv-claude" in names_line
+
+
+@pytest.mark.asyncio
+async def test_revoke_last_op_autopromotes(server, make_client):
+    """-o on the last op auto-promotes another member."""
+    op = await make_client(nick="testserv-ori", user="ori")
+    await op.send("JOIN #general")
+    await op.recv_all(timeout=0.5)
+
+    member = await make_client(nick="testserv-claude", user="claude")
+    await member.send("JOIN #general")
+    await member.recv_all(timeout=0.5)
+    await op.recv_all(timeout=0.5)
+
+    # Op revokes own op
+    await op.send("MODE #general -o testserv-ori")
+    await op.recv_all(timeout=0.5)
+    await member.recv_all(timeout=0.5)
+
+    # claude should be auto-promoted
+    await member.send("NAMES #general")
+    lines = await member.recv_all(timeout=1.0)
+    names_line = [l for l in lines if "353" in l][0]
+    assert "@testserv-claude" in names_line
