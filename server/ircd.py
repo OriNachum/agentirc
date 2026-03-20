@@ -23,11 +23,17 @@ class IRCd:
         self._server: asyncio.Server | None = None
 
     async def start(self) -> None:
+        await self._register_default_skills()
         self._server = await asyncio.start_server(
             self._handle_connection,
             self.config.host,
             self.config.port,
         )
+
+    async def _register_default_skills(self) -> None:
+        from server.skills.history import HistorySkill
+
+        await self.register_skill(HistorySkill())
 
     async def register_skill(self, skill: Skill) -> None:
         self.skills.append(skill)
