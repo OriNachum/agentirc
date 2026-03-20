@@ -2,6 +2,7 @@
 from __future__ import annotations
 
 import asyncio
+import logging
 from typing import TYPE_CHECKING
 
 from server.config import ServerConfig
@@ -41,7 +42,12 @@ class IRCd:
 
     async def emit_event(self, event: Event) -> None:
         for skill in self.skills:
-            await skill.on_event(event)
+            try:
+                await skill.on_event(event)
+            except Exception:
+                logging.getLogger(__name__).exception(
+                    "Skill %s failed on event %s", skill.name, event.type
+                )
 
     def get_skill_for_command(self, command: str) -> Skill | None:
         for skill in self.skills:

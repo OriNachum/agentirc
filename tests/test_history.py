@@ -146,9 +146,6 @@ async def test_history_get_recent_empty_channel(server, make_client):
 
 @pytest.mark.asyncio
 async def test_history_recent_command(server, make_client):
-    skill = HistorySkill()
-    await server.register_skill(skill)
-
     alice = await make_client(nick="testserv-alice", user="alice")
     bob = await make_client(nick="testserv-bob", user="bob")
     await alice.send("JOIN #test")
@@ -178,9 +175,6 @@ async def test_history_recent_command(server, make_client):
 
 @pytest.mark.asyncio
 async def test_history_recent_includes_nick_and_timestamp(server, make_client):
-    skill = HistorySkill()
-    await server.register_skill(skill)
-
     alice = await make_client(nick="testserv-alice", user="alice")
     bob = await make_client(nick="testserv-bob", user="bob")
     await alice.send("JOIN #test")
@@ -207,9 +201,6 @@ async def test_history_recent_includes_nick_and_timestamp(server, make_client):
 
 @pytest.mark.asyncio
 async def test_history_recent_empty_channel(server, make_client):
-    skill = HistorySkill()
-    await server.register_skill(skill)
-
     alice = await make_client(nick="testserv-alice", user="alice")
 
     await alice.send("HISTORY RECENT #empty 10")
@@ -223,9 +214,6 @@ async def test_history_recent_empty_channel(server, make_client):
 
 @pytest.mark.asyncio
 async def test_history_recent_count_exceeds_stored(server, make_client):
-    skill = HistorySkill()
-    await server.register_skill(skill)
-
     alice = await make_client(nick="testserv-alice", user="alice")
     bob = await make_client(nick="testserv-bob", user="bob")
     await alice.send("JOIN #test")
@@ -248,9 +236,6 @@ async def test_history_recent_count_exceeds_stored(server, make_client):
 
 @pytest.mark.asyncio
 async def test_history_missing_params(server, make_client):
-    skill = HistorySkill()
-    await server.register_skill(skill)
-
     alice = await make_client(nick="testserv-alice", user="alice")
     await alice.send("HISTORY")
     resp = await alice.recv()
@@ -259,9 +244,6 @@ async def test_history_missing_params(server, make_client):
 
 @pytest.mark.asyncio
 async def test_history_recent_missing_count(server, make_client):
-    skill = HistorySkill()
-    await server.register_skill(skill)
-
     alice = await make_client(nick="testserv-alice", user="alice")
     await alice.send("HISTORY RECENT #test")
     resp = await alice.recv()
@@ -270,9 +252,6 @@ async def test_history_recent_missing_count(server, make_client):
 
 @pytest.mark.asyncio
 async def test_history_unknown_subcommand(server, make_client):
-    skill = HistorySkill()
-    await server.register_skill(skill)
-
     alice = await make_client(nick="testserv-alice", user="alice")
     await alice.send("HISTORY BADCMD #test")
     resp = await alice.recv()
@@ -285,9 +264,6 @@ async def test_history_unknown_subcommand(server, make_client):
 
 @pytest.mark.asyncio
 async def test_history_search_finds_matching_messages(server, make_client):
-    skill = HistorySkill()
-    await server.register_skill(skill)
-
     alice = await make_client(nick="testserv-alice", user="alice")
     bob = await make_client(nick="testserv-bob", user="bob")
     await alice.send("JOIN #test")
@@ -317,9 +293,6 @@ async def test_history_search_finds_matching_messages(server, make_client):
 
 @pytest.mark.asyncio
 async def test_history_search_case_insensitive(server, make_client):
-    skill = HistorySkill()
-    await server.register_skill(skill)
-
     alice = await make_client(nick="testserv-alice", user="alice")
     bob = await make_client(nick="testserv-bob", user="bob")
     await alice.send("JOIN #test")
@@ -342,9 +315,6 @@ async def test_history_search_case_insensitive(server, make_client):
 
 @pytest.mark.asyncio
 async def test_history_search_no_results(server, make_client):
-    skill = HistorySkill()
-    await server.register_skill(skill)
-
     alice = await make_client(nick="testserv-alice", user="alice")
     bob = await make_client(nick="testserv-bob", user="bob")
     await alice.send("JOIN #test")
@@ -368,9 +338,6 @@ async def test_history_search_no_results(server, make_client):
 
 @pytest.mark.asyncio
 async def test_history_search_missing_term(server, make_client):
-    skill = HistorySkill()
-    await server.register_skill(skill)
-
     alice = await make_client(nick="testserv-alice", user="alice")
     await alice.send("HISTORY SEARCH #test")
     resp = await alice.recv()

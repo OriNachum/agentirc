@@ -42,6 +42,8 @@ class HistorySkill(Skill):
             )
 
     def get_recent(self, channel: str, count: int) -> list[HistoryEntry]:
+        if count <= 0:
+            return []
         buf = self._channels.get(channel)
         if not buf:
             return []
@@ -87,8 +89,22 @@ class HistorySkill(Skill):
         try:
             count = int(msg.params[2])
         except ValueError:
-            await client.send_numeric(
-                replies.ERR_NEEDMOREPARAMS, "HISTORY", "Not enough parameters"
+            await client.send(
+                Message(
+                    prefix=self.server.config.name,
+                    command="NOTICE",
+                    params=[client.nick, "Invalid count"],
+                )
+            )
+            return
+
+        if count < 0:
+            await client.send(
+                Message(
+                    prefix=self.server.config.name,
+                    command="NOTICE",
+                    params=[client.nick, "Invalid count"],
+                )
             )
             return
 

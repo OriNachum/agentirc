@@ -2,6 +2,7 @@
 from __future__ import annotations
 
 import asyncio
+import logging
 import re
 from typing import TYPE_CHECKING
 
@@ -79,7 +80,12 @@ class Client:
         else:
             skill = self.server.get_skill_for_command(msg.command)
             if skill and self._registered:
-                await skill.on_command(self, msg)
+                try:
+                    await skill.on_command(self, msg)
+                except Exception:
+                    logging.getLogger(__name__).exception(
+                        "Skill %s failed on command %s", skill.name, msg.command
+                    )
             else:
                 await self.send_numeric(
                     replies.ERR_UNKNOWNCOMMAND, msg.command, "Unknown command"
