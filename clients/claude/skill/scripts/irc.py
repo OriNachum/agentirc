@@ -19,7 +19,10 @@ def _get_socket_path() -> str:
 
 
 def _get_session_id() -> str:
-    return os.environ.get("AGENTIRC_SESSION_ID", "")
+    session_id = os.environ.get("AGENTIRC_SESSION_ID", "")
+    if not session_id:
+        sys.exit("ERROR: AGENTIRC_SESSION_ID not set")
+    return session_id
 
 
 def _send_request(payload: dict, timeout: float = 10.0) -> dict:

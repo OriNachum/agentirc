@@ -29,6 +29,7 @@ class IPCServer:
         self._server = await asyncio.start_unix_server(
             self._handle_connection, path=self._socket_path
         )
+        os.chmod(self._socket_path, 0o600)
         logger.info("IPC server listening at %s", self._socket_path)
 
     async def stop(self) -> None:
@@ -100,7 +101,7 @@ class IPCServer:
                     "message": "unknown session",
                 })
                 return
-            fut: asyncio.Future = asyncio.get_event_loop().create_future()
+            fut: asyncio.Future = asyncio.get_running_loop().create_future()
             session.pending_questions[cid] = fut
             # Start question flow in background; respond when future resolves
             asyncio.create_task(
@@ -113,11 +114,11 @@ class IPCServer:
                     "correlation_id": cid,
                     "answer": answer,
                 })
-            except (asyncio.TimeoutError, TimeoutError) as exc:
+            except (asyncio.TimeoutError, TimeoutError):
                 await self._send(writer, {
                     "type": "error",
                     "correlation_id": cid,
-                    "message": str(exc),
+                    "message": f"No answer within {timeout + 5}s",
                 })
             finally:
                 session.pending_questions.pop(cid, None)
@@ -153,16 +154,17 @@ class IPCServer:
                         "ts": msg.params[2],
                         "text": msg.params[3] if len(msg.params) > 3 else "",
                     })
-            elif msg.command == "HISTORYEND":
+            elif msg.command == "HISTORYEND" and msg.params and msg.params[0] == channel:
                 q.put_nowait(None)  # sentinel
 
         self._irc.add_handler(_collector)
         try:
             await self._irc.send_raw(f"HISTORY RECENT {channel} {limit}")
             # Collect until sentinel or timeout
-            deadline = asyncio.get_event_loop().time() + 5.0
+            loop = asyncio.get_running_loop()
+            deadline = loop.time() + 5.0
             while True:
-                remaining = deadline - asyncio.get_event_loop().time()
+                remaining = deadline - loop.time()
                 if remaining <= 0:
                     break
                 try:
@@ -173,9 +175,6 @@ class IPCServer:
                 except asyncio.TimeoutError:
                     break
         finally:
-            try:
-                self._irc._handlers.remove(_collector)
-            except ValueError:
-                pass
+            self._irc.remove_handler(_collector)
 
         return messages

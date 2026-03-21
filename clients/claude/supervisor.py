@@ -38,6 +38,7 @@ class SupervisorAgent:
         self._window: deque[dict] = deque(maxlen=20)
         self._whisper_count = 0
         self._task: asyncio.Task | None = None
+        self._anthropic_client = None  # lazy-init, reused across evaluations
         # Injector set by SessionManager after spawn
         self._inject_fn = None
 
@@ -65,11 +66,13 @@ class SupervisorAgent:
                 await self._evaluate()
 
     async def _evaluate(self) -> None:
-        try:
-            import anthropic
-        except ImportError:
-            logger.warning("anthropic package not installed; supervisor disabled")
-            return
+        if self._anthropic_client is None:
+            try:
+                import anthropic
+            except ImportError:
+                logger.warning("anthropic package not installed; supervisor disabled")
+                return
+            self._anthropic_client = anthropic.AsyncAnthropic()
 
         events = list(self._window)
         prompt = (
@@ -82,8 +85,7 @@ class SupervisorAgent:
         )
 
         try:
-            client = anthropic.AsyncAnthropic()
-            response = await client.messages.create(
+            response = await self._anthropic_client.messages.create(
                 model=self._config.supervisor_model,
                 max_tokens=128,
                 messages=[{"role": "user", "content": prompt}],

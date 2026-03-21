@@ -89,8 +89,14 @@ class IRCConnection:
                     self._connected.set()
                 await self._dispatch(msg)
 
+    def remove_handler(self, fn: Callable[[Message], Awaitable[None]]) -> None:
+        try:
+            self._handlers.remove(fn)
+        except ValueError:
+            pass
+
     async def _dispatch(self, msg: Message) -> None:
-        for handler in self._handlers:
+        for handler in list(self._handlers):  # snapshot to allow mutation during dispatch
             try:
                 await handler(msg)
             except Exception:

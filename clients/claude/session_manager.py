@@ -14,6 +14,7 @@ if TYPE_CHECKING:
     from clients.claude.irc_connection import IRCConnection
     from clients.claude.supervisor import SupervisorAgent
     from clients.claude.question_flow import QuestionFlow
+    from clients.claude.webhook import WebhookClient
 
 logger = logging.getLogger(__name__)
 
@@ -56,10 +57,12 @@ class SessionManager:
         config: DaemonConfig,
         irc: IRCConnection,
         question_flow: QuestionFlow,
+        webhooks: WebhookClient,
     ):
         self._config = config
         self._irc = irc
         self.question_flow = question_flow
+        self._webhooks = webhooks
         self._sessions: dict[str, Session] = {}
         self._active_session_id: str | None = None
 
@@ -87,7 +90,6 @@ class SessionManager:
         self, nick: str, channel: str | None, text: str
     ) -> None:
         from clients.claude.supervisor import SupervisorAgent
-        from clients.claude.webhook import WebhookClient
 
         session_id = str(uuid.uuid4())
         trigger_location = channel or f"DM from {nick}"
@@ -119,7 +121,7 @@ class SessionManager:
                 "--dangerously-skip-permissions",
                 stdin=asyncio.subprocess.PIPE,
                 stdout=asyncio.subprocess.PIPE,
-                stderr=asyncio.subprocess.PIPE,
+                stderr=asyncio.subprocess.DEVNULL,
                 cwd=self._config.working_dir,
                 env=env,
             )
@@ -131,12 +133,11 @@ class SessionManager:
                 )
             return
 
-        webhooks = WebhookClient()
         supervisor = SupervisorAgent(
             session_id=session_id,
             channel=channel or self._config.channels[0],
             irc=self._irc,
-            webhooks=webhooks,
+            webhooks=self._webhooks,
             config=self._config,
         )
 
@@ -225,6 +226,7 @@ class SessionManager:
             await session.supervisor.stop()
             if self._active_session_id == session.id:
                 self._active_session_id = None
+            self._sessions.pop(session.id, None)
             logger.info("Session %s ended", session.id)
 
     async def _forward_to_irc(self, session: Session, event: dict) -> None:
@@ -255,6 +257,11 @@ class SessionManager:
         for session in list(self._sessions.values()):
             if session.proc.returncode is None:
                 session.proc.terminate()
+                try:
+                    await asyncio.wait_for(session.proc.wait(), timeout=5.0)
+                except asyncio.TimeoutError:
+                    session.proc.kill()
+                    await session.proc.wait()
             await session.supervisor.stop()
         self._sessions.clear()
         self._active_session_id = None

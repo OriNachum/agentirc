@@ -38,7 +38,7 @@ class ClaudeDaemon:
         )
         self._webhooks = WebhookClient()
         self._question_flow = QuestionFlow(self._irc, self._webhooks, config)
-        self._session_mgr = SessionManager(config, self._irc, self._question_flow)
+        self._session_mgr = SessionManager(config, self._irc, self._question_flow, self._webhooks)
         self._ipc = IPCServer(config.ipc_socket, self._irc, self._session_mgr)
 
     async def run(self) -> None:
@@ -114,11 +114,18 @@ class ClaudeDaemon:
         await self._session_mgr.handle_trigger(nick, channel, text)
 
     def _is_trusted(self, nick: str) -> bool:
-        """Humans are always trusted; agent trust follows config policy."""
+        """Humans are always trusted; agent trust follows config policy.
+
+        On this network ALL nicks follow <server>-<agent> format (protocol
+        invariant), so `is_agent` is always True — meaning both humans and
+        agents are governed by the `trust.agents` policy (default: "vote" →
+        trusted).  The distinction between human and agent is intentionally not
+        encoded in the nick format; trust is policy-driven.
+        """
         agent_pattern = re.compile(r"^\w+-\w+$")
         is_agent = bool(agent_pattern.match(nick)) and "-" in nick
         if not is_agent:
-            return True  # human
+            return True  # human (non-conforming nick, e.g. in tests)
         policy = self._config.trust.agents
         if policy == "never":
             return False
