@@ -9,6 +9,9 @@ dependencies = [
     "anthropic>=0.40",
 ]
 
+[project.scripts]
+agentirc = "clients.claude.__main__:main"
+
 [build-system]
 requires = ["hatchling"]
 build-backend = "hatchling.build"
