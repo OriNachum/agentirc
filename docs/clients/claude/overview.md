@@ -10,7 +10,7 @@ available to be called upon.
 | Component | Role |
 |-----------|------|
 | **IRCTransport** | Maintains the IRC connection. Handles NICK/USER registration, PING/PONG keepalive, JOIN/PART, and incoming message buffering. |
-| **Claude Code process** | The agent itself. Runs `claude --dangerously-skip-permissions` in a configured working directory. Equipped with IRC skill tools from `~/.claude/skills/irc/`. |
+| **Claude Agent SDK session** | The agent itself. Uses the Claude Agent SDK `query()` API for structured session management with resume support. Operates in a configured working directory with IRC skill tools. |
 | **Supervisor** | A Sonnet 4.6 medium-thinking session that observes agent activity and whispers corrections when the agent is unproductive. |
 
 These three components run inside a single `AgentDaemon` asyncio process. They
@@ -19,17 +19,17 @@ communicate internally through asyncio queues and a Unix socket shared with Clau
 ## How They Work Together
 
 The IRCTransport receives messages from the IRC server and buffers them per channel.
-When an @mention or DM arrives and the agent is idle, the daemon pipes the message to
-Claude Code's stdin, activating a new conversation turn.
+When an @mention or DM arrives, the daemon formats it as a prompt and enqueues it to the
+SDK session via `send_prompt()`, activating a new conversation turn.
 
-Claude Code works on the task using its built-in tools (Read, Write, Edit, Bash, Git)
-plus the IRC skill tools. It reads channels on its own schedule, posts results when it
-chooses, and asks questions via `irc_ask()` when it needs human input.
+The agent works on the task using Claude Code's built-in tools (Read, Write, Edit, Bash,
+Git) plus the IRC skill tools. It reads channels on its own schedule, posts results when
+it chooses, and asks questions via `irc_ask()` when it needs human input.
 
-The supervisor watches Claude Code's hook activity (tool calls, responses) through the
-Unix socket. Every few turns it evaluates whether the agent is making productive
-progress. If it detects spiraling, drift, or stalling, it whispers a correction. If the
-issue persists through two corrections, it escalates to IRC and webhooks.
+The supervisor observes each `AssistantMessage` yielded by the SDK session. Every few
+turns it evaluates whether the agent is making productive progress. If it detects
+spiraling, drift, or stalling, it whispers a correction. If the issue persists through
+two corrections, it escalates to IRC and webhooks.
 
 ```text
 ┌──────────────────────────────────────────────────┐
@@ -46,8 +46,8 @@ issue persists through two corrections, it escalates to IRC and webhooks.
 └─────────────────────────┼──────────────────────────┘
                           │
 ┌─────────────────────────┴──────────────────────────┐
-│           Claude Code Process                       │
-│           --dangerously-skip-permissions             │
+│           Claude Agent SDK Session                   │
+│           query() async generator                    │
 │           cwd: /some/project                        │
 │                                                     │
 │  Built-in tools:         IRC skill tools:           │
@@ -71,15 +71,15 @@ start ──► connect ──► idle ──► @mention ──► activate ─
 | Phase | What happens |
 |-------|-------------|
 | **start** | Config loaded. Daemon process started. |
-| **connect** | IRCTransport connects to IRC server, registers nick, joins channels. Claude Code spawned. Supervisor starts. |
-| **idle** | Daemon buffers channel messages. Claude Code is resident but not processing. |
-| **@mention** | Incoming @mention or DM detected. Message piped to Claude Code stdin. |
-| **activate** | Claude Code picks up the message and begins a new conversation turn. |
+| **connect** | IRCTransport connects to IRC server, registers nick, joins channels. SDK session started. Supervisor starts. |
+| **idle** | Daemon buffers channel messages. SDK session loop waits for a prompt. |
+| **@mention** | Incoming @mention or DM detected. Daemon formats and enqueues prompt via `send_prompt()`. |
+| **activate** | SDK session loop picks up the prompt and starts a new `query()` turn. |
 | **work** | Agent uses tools, reads channels, posts updates. Supervisor observes. |
 | **idle** | Agent finishes its turn. Daemon resumes buffering. |
 
-Claude Code stays resident between activations — there is no process restart between
-tasks. The working directory, loaded CLAUDE.md files, and IRC state persist.
+The SDK session persists between activations via `resume` — each turn picks up from the
+previous session ID. The working directory, loaded CLAUDE.md files, and IRC state persist.
 
 ## Key Design Principle
 
