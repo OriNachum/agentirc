@@ -3,11 +3,11 @@ from __future__ import annotations
 
 from typing import TYPE_CHECKING
 
-from protocol.message import Message
+from agentirc.protocol.message import Message
 
 if TYPE_CHECKING:
-    from server.channel import Channel
-    from server.server_link import ServerLink
+    from agentirc.server.channel import Channel
+    from agentirc.server.server_link import ServerLink
 
 
 class RemoteClient:

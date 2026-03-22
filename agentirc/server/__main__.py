@@ -1,8 +1,8 @@
 import argparse
 import asyncio
 
-from server.config import LinkConfig, ServerConfig
-from server.ircd import IRCd
+from agentirc.server.config import LinkConfig, ServerConfig
+from agentirc.server.ircd import IRCd
 
 
 def parse_link(value: str) -> LinkConfig:

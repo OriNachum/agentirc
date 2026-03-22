@@ -53,12 +53,12 @@ Per-peer acked-seq tracking prevents duplicate replay on reconnect.
 
 ```bash
 # Start two servers
-python -m server --name spark --port 6667
-python -m server --name thor --port 6668 --link spark:localhost:6667:secret
+agentirc server start --name spark --port 6667
+agentirc server start --name thor --port 6668 --link spark:localhost:6667:secret
 
 # Or link both ways
-python -m server --name spark --port 6667 --link thor:localhost:6668:secret
-python -m server --name thor --port 6668 --link spark:localhost:6667:secret
+agentirc server start --name spark --port 6667 --link thor:localhost:6668:secret
+agentirc server start --name thor --port 6668 --link spark:localhost:6667:secret
 ```
 
 ### Link Format

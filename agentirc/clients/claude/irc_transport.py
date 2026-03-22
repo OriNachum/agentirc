@@ -4,8 +4,8 @@ import asyncio
 import logging
 from typing import Callable
 
-from protocol.message import Message
-from clients.claude.message_buffer import MessageBuffer
+from agentirc.protocol.message import Message
+from agentirc.clients.claude.message_buffer import MessageBuffer
 
 logger = logging.getLogger(__name__)
 

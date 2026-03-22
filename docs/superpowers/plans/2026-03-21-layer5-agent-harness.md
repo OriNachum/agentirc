@@ -87,7 +87,7 @@ from pathlib import Path
 
 def test_load_config_from_yaml():
     """Load a complete agents.yaml and verify all fields parse."""
-    from clients.claude.config import load_config
+    from agentirc.clients.claude.config import load_config
 
     yaml_content = """\
 server:
@@ -147,7 +147,7 @@ agents:
 
 def test_load_config_defaults():
     """Missing optional fields get defaults."""
-    from clients.claude.config import load_config
+    from agentirc.clients.claude.config import load_config
 
     yaml_content = """\
 agents:
@@ -180,7 +180,7 @@ agents:
 
 def test_get_agent_by_nick():
     """Look up an agent config by nick."""
-    from clients.claude.config import load_config
+    from agentirc.clients.claude.config import load_config
 
     yaml_content = """\
 agents:
@@ -352,7 +352,7 @@ JSON Lines encode/decode for daemon ↔ skill communication. Foundation for sock
 import json
 import uuid
 
-from clients.claude.ipc import (
+from agentirc.clients.claude.ipc import (
     encode_message,
     decode_message,
     make_request,
@@ -499,7 +499,7 @@ Per-channel ring buffer with read-cursor tracking. Separated from IRC transport 
 ```python
 # tests/test_message_buffer.py
 import time
-from clients.claude.message_buffer import MessageBuffer, BufferedMessage
+from agentirc.clients.claude.message_buffer import MessageBuffer, BufferedMessage
 
 
 def test_add_and_read():
@@ -690,8 +690,8 @@ Async IRC client that connects to the server, registers a nick, joins channels, 
 import asyncio
 import pytest
 import pytest_asyncio
-from clients.claude.irc_transport import IRCTransport
-from clients.claude.message_buffer import MessageBuffer
+from agentirc.clients.claude.irc_transport import IRCTransport
+from agentirc.clients.claude.message_buffer import MessageBuffer
 
 
 @pytest.mark.asyncio
@@ -833,8 +833,8 @@ import asyncio
 import logging
 from typing import Callable
 
-from protocol.message import Message
-from clients.claude.message_buffer import MessageBuffer
+from agentirc.protocol.message import Message
+from agentirc.clients.claude.message_buffer import MessageBuffer
 
 logger = logging.getLogger(__name__)
 
@@ -1041,8 +1041,8 @@ import os
 import tempfile
 import pytest
 
-from clients.claude.socket_server import SocketServer
-from clients.claude.ipc import encode_message, decode_message, make_request
+from agentirc.clients.claude.socket_server import SocketServer
+from agentirc.clients.claude.ipc import encode_message, decode_message, make_request
 
 
 @pytest.mark.asyncio
@@ -1141,7 +1141,7 @@ import logging
 import os
 from typing import Any, Callable, Awaitable
 
-from clients.claude.ipc import encode_message, decode_message, make_whisper
+from agentirc.clients.claude.ipc import encode_message, decode_message, make_whisper
 
 logger = logging.getLogger(__name__)
 
@@ -1257,8 +1257,8 @@ from http.server import HTTPServer, BaseHTTPRequestHandler
 import threading
 import pytest
 
-from clients.claude.webhook import WebhookClient, AlertEvent
-from clients.claude.config import WebhookConfig
+from agentirc.clients.claude.webhook import WebhookClient, AlertEvent
+from agentirc.clients.claude.config import WebhookConfig
 
 
 class WebhookCapture(BaseHTTPRequestHandler):
@@ -1364,7 +1364,7 @@ import urllib.request
 from dataclasses import dataclass
 from typing import Any, Callable, Awaitable
 
-from clients.claude.config import WebhookConfig
+from agentirc.clients.claude.config import WebhookConfig
 
 logger = logging.getLogger(__name__)
 
@@ -1452,7 +1452,7 @@ Manages the Claude Agent SDK session lifecycle. Uses `query()` with `permission_
 import asyncio
 import pytest
 
-from clients.claude.agent_runner import AgentRunner
+from agentirc.clients.claude.agent_runner import AgentRunner
 
 
 @pytest.mark.asyncio
@@ -1668,7 +1668,7 @@ The supervisor evaluates agent activity and generates whispers. Tests use a mock
 import asyncio
 import pytest
 
-from clients.claude.supervisor import Supervisor, SupervisorVerdict
+from agentirc.clients.claude.supervisor import Supervisor, SupervisorVerdict
 
 
 def test_verdict_parsing():
@@ -1955,8 +1955,8 @@ import os
 import tempfile
 import pytest
 
-from clients.claude.daemon import AgentDaemon
-from clients.claude.config import (
+from agentirc.clients.claude.daemon import AgentDaemon
+from agentirc.clients.claude.config import (
     DaemonConfig, ServerConnConfig, AgentConfig,
     SupervisorConfig, WebhookConfig,
 )
@@ -2010,7 +2010,7 @@ async def test_daemon_ipc_irc_send(server, make_client):
     await human.recv_all(timeout=0.3)
 
     # Connect to daemon socket and send irc_send request
-    from clients.claude.ipc import encode_message, decode_message, make_request
+    from agentirc.clients.claude.ipc import encode_message, decode_message, make_request
     sock_path = os.path.join(sock_dir, "testserv-bot.sock")
     reader, writer = await asyncio.open_unix_connection(sock_path)
 
@@ -2057,7 +2057,7 @@ async def test_daemon_ipc_irc_read(server, make_client):
     await asyncio.sleep(0.3)
 
     # Connect to daemon socket and send irc_read request
-    from clients.claude.ipc import encode_message, decode_message, make_request
+    from agentirc.clients.claude.ipc import encode_message, decode_message, make_request
     sock_path = os.path.join(sock_dir, "testserv-bot.sock")
     reader, writer = await asyncio.open_unix_connection(sock_path)
 
@@ -2094,14 +2094,14 @@ from typing import Any
 
 import time
 
-from clients.claude.config import DaemonConfig, AgentConfig
-from clients.claude.ipc import make_response, MSG_TYPE_RESPONSE
-from clients.claude.irc_transport import IRCTransport
-from clients.claude.message_buffer import MessageBuffer
-from clients.claude.socket_server import SocketServer
-from clients.claude.webhook import WebhookClient, AlertEvent
-from clients.claude.agent_runner import AgentRunner
-from clients.claude.supervisor import Supervisor, SupervisorVerdict
+from agentirc.clients.claude.config import DaemonConfig, AgentConfig
+from agentirc.clients.claude.ipc import make_response, MSG_TYPE_RESPONSE
+from agentirc.clients.claude.irc_transport import IRCTransport
+from agentirc.clients.claude.message_buffer import MessageBuffer
+from agentirc.clients.claude.socket_server import SocketServer
+from agentirc.clients.claude.webhook import WebhookClient, AlertEvent
+from agentirc.clients.claude.agent_runner import AgentRunner
+from agentirc.clients.claude.supervisor import Supervisor, SupervisorVerdict
 
 logger = logging.getLogger(__name__)
 
@@ -2339,8 +2339,8 @@ import os
 import tempfile
 import pytest
 
-from clients.claude.ipc import make_response, encode_message
-from clients.claude.skill.irc_client import SkillClient
+from agentirc.clients.claude.ipc import make_response, encode_message
+from agentirc.clients.claude.skill.irc_client import SkillClient
 
 
 @pytest.mark.asyncio
@@ -2407,7 +2407,7 @@ async def test_skill_client_queues_whispers():
     sock_dir = tempfile.mkdtemp()
     sock_path = os.path.join(sock_dir, "test-agent.sock")
 
-    from clients.claude.ipc import make_whisper
+    from agentirc.clients.claude.ipc import make_whisper
 
     async def mock_handler(reader, writer):
         # Send a whisper first (unsolicited)
@@ -2458,16 +2458,16 @@ Standalone IRC skill client for Claude Code.
 Connects to the daemon's Unix socket and provides IRC tools.
 
 Usage (from Claude Code Bash tool):
-    python -m clients.claude.skill.irc_client send "#general" "hello"
-    python -m clients.claude.skill.irc_client read "#general" --limit 50
-    python -m clients.claude.skill.irc_client ask "#general" "question?" --timeout 300
-    python -m clients.claude.skill.irc_client join "#channel"
-    python -m clients.claude.skill.irc_client part "#channel"
-    python -m clients.claude.skill.irc_client channels
-    python -m clients.claude.skill.irc_client who "#channel"
-    python -m clients.claude.skill.irc_client compact
-    python -m clients.claude.skill.irc_client clear
-    python -m clients.claude.skill.irc_client set-directory /path
+    python -m agentirc.clients.claude.skill.irc_client send "#general" "hello"
+    python -m agentirc.clients.claude.skill.irc_client read "#general" --limit 50
+    python -m agentirc.clients.claude.skill.irc_client ask "#general" "question?" --timeout 300
+    python -m agentirc.clients.claude.skill.irc_client join "#channel"
+    python -m agentirc.clients.claude.skill.irc_client part "#channel"
+    python -m agentirc.clients.claude.skill.irc_client channels
+    python -m agentirc.clients.claude.skill.irc_client who "#channel"
+    python -m agentirc.clients.claude.skill.irc_client compact
+    python -m agentirc.clients.claude.skill.irc_client clear
+    python -m agentirc.clients.claude.skill.irc_client set-directory /path
 """
 from __future__ import annotations
 
@@ -2477,7 +2477,7 @@ import os
 import sys
 from typing import Any
 
-from clients.claude.ipc import encode_message, decode_message, make_request, MSG_TYPE_WHISPER
+from agentirc.clients.claude.ipc import encode_message, decode_message, make_request, MSG_TYPE_WHISPER
 
 
 class SkillClient:
@@ -2673,7 +2673,7 @@ and manage your working context through the agentirc daemon.
 ### irc_send
 Send a message to an IRC channel or user.
 ```bash
-python -m clients.claude.skill.irc_client send "<channel>" "<message>"
+python -m agentirc.clients.claude.skill.irc_client send "<channel>" "<message>"
 ```
 
 ### irc_read
@@ -2681,7 +2681,7 @@ python -m clients.claude.skill.irc_client send "<channel>" "<message>"
 Read recent messages from a channel since your last read.
 
 ```bash
-python -m clients.claude.skill.irc_client read "<channel>" --limit 50
+python -m agentirc.clients.claude.skill.irc_client read "<channel>" --limit 50
 ```
 
 ### irc_ask
@@ -2689,7 +2689,7 @@ python -m clients.claude.skill.irc_client read "<channel>" --limit 50
 Post a question and wait for a response directed at you.
 
 ```bash
-python -m clients.claude.skill.irc_client ask "<channel>" "<question>" --timeout 300
+python -m agentirc.clients.claude.skill.irc_client ask "<channel>" "<question>" --timeout 300
 ```
 
 ### irc_join / irc_part
@@ -2697,8 +2697,8 @@ python -m clients.claude.skill.irc_client ask "<channel>" "<question>" --timeout
 Join or leave an IRC channel.
 
 ```bash
-python -m clients.claude.skill.irc_client join "<channel>"
-python -m clients.claude.skill.irc_client part "<channel>"
+python -m agentirc.clients.claude.skill.irc_client join "<channel>"
+python -m agentirc.clients.claude.skill.irc_client part "<channel>"
 ```
 
 ### channels / who
@@ -2706,8 +2706,8 @@ python -m clients.claude.skill.irc_client part "<channel>"
 List your channels or members of a channel.
 
 ```bash
-python -m clients.claude.skill.irc_client channels
-python -m clients.claude.skill.irc_client who "<channel>"
+python -m agentirc.clients.claude.skill.irc_client channels
+python -m agentirc.clients.claude.skill.irc_client who "<channel>"
 ```
 
 ### compact / clear
@@ -2715,8 +2715,8 @@ python -m clients.claude.skill.irc_client who "<channel>"
 Manage your conversation context.
 
 ```bash
-python -m clients.claude.skill.irc_client compact
-python -m clients.claude.skill.irc_client clear
+python -m agentirc.clients.claude.skill.irc_client compact
+python -m agentirc.clients.claude.skill.irc_client clear
 ```
 
 ### set-directory
@@ -2724,7 +2724,7 @@ python -m clients.claude.skill.irc_client clear
 Change your working directory and load its CLAUDE.md.
 
 ```bash
-python -m clients.claude.skill.irc_client set-directory "/path/to/project"
+python -m agentirc.clients.claude.skill.irc_client set-directory "/path/to/project"
 ```
 
 ## Guidelines
@@ -2780,8 +2780,8 @@ import signal
 import sys
 from pathlib import Path
 
-from clients.claude.config import load_config
-from clients.claude.daemon import AgentDaemon
+from agentirc.clients.claude.config import load_config
+from agentirc.clients.claude.daemon import AgentDaemon
 
 logger = logging.getLogger("agentirc")
 
@@ -2973,11 +2973,11 @@ import os
 import tempfile
 import pytest
 
-from clients.claude.config import (
+from agentirc.clients.claude.config import (
     DaemonConfig, ServerConnConfig, AgentConfig, WebhookConfig,
 )
-from clients.claude.daemon import AgentDaemon
-from clients.claude.skill.irc_client import SkillClient
+from agentirc.clients.claude.daemon import AgentDaemon
+from agentirc.clients.claude.skill.irc_client import SkillClient
 
 
 @pytest.mark.asyncio

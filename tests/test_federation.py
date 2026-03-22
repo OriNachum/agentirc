@@ -5,8 +5,8 @@ import asyncio
 import pytest
 import pytest_asyncio
 
-from server.config import LinkConfig, ServerConfig
-from server.ircd import IRCd
+from agentirc.server.config import LinkConfig, ServerConfig
+from agentirc.server.ircd import IRCd
 from tests.conftest import IRCTestClient
 
 

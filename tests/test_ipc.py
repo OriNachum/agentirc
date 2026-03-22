@@ -1,7 +1,7 @@
 import json
 import uuid
 
-from clients.claude.ipc import (
+from agentirc.clients.claude.ipc import (
     encode_message,
     decode_message,
     make_request,

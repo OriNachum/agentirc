@@ -5,12 +5,12 @@ from collections import deque
 from dataclasses import dataclass
 from typing import TYPE_CHECKING
 
-from protocol.message import Message
-from protocol import replies
-from server.skill import Event, EventType, Skill
+from agentirc.protocol.message import Message
+from agentirc.protocol import replies
+from agentirc.server.skill import Event, EventType, Skill
 
 if TYPE_CHECKING:
-    from server.client import Client
+    from agentirc.server.client import Client
 
 
 @dataclass

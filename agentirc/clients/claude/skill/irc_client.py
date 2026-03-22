@@ -16,7 +16,7 @@ import os
 import sys
 from typing import Any
 
-from clients.claude.ipc import (
+from agentirc.clients.claude.ipc import (
     encode_message,
     decode_message,
     make_request,

@@ -6,9 +6,9 @@ from enum import Enum
 from typing import TYPE_CHECKING, Any
 
 if TYPE_CHECKING:
-    from server.client import Client
-    from server.ircd import IRCd
-    from protocol.message import Message
+    from agentirc.server.client import Client
+    from agentirc.server.ircd import IRCd
+    from agentirc.protocol.message import Message
 
 
 class EventType(Enum):

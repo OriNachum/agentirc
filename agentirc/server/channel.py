@@ -2,8 +2,8 @@ from __future__ import annotations
 from typing import TYPE_CHECKING, Union
 
 if TYPE_CHECKING:
-    from server.client import Client
-    from server.remote_client import RemoteClient
+    from agentirc.server.client import Client
+    from agentirc.server.remote_client import RemoteClient
 
     Member = Union[Client, RemoteClient]
 
@@ -20,13 +20,13 @@ class Channel:
 
     def _local_members(self) -> set[Client]:
         """Return only local (non-remote) members."""
-        from server.remote_client import RemoteClient
+        from agentirc.server.remote_client import RemoteClient
         return {m for m in self.members if not isinstance(m, RemoteClient)}
 
     def add(self, client: Client) -> None:
         # Only grant op to the first LOCAL joiner
         if not self._local_members():
-            from server.remote_client import RemoteClient
+            from agentirc.server.remote_client import RemoteClient
             if not isinstance(client, RemoteClient):
                 self.operators.add(client)
         self.members.add(client)

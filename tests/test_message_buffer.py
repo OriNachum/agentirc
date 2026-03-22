@@ -1,5 +1,5 @@
 import time
-from clients.claude.message_buffer import MessageBuffer, BufferedMessage
+from agentirc.clients.claude.message_buffer import MessageBuffer, BufferedMessage
 
 
 def test_add_and_read():

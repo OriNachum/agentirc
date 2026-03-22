@@ -3,7 +3,7 @@ import asyncio
 
 import pytest
 
-from server.skill import Event, EventType, Skill
+from agentirc.server.skill import Event, EventType, Skill
 
 
 class RecorderSkill(Skill):
@@ -25,7 +25,7 @@ class EchoSkill(Skill):
     commands = {"ECHO"}
 
     async def on_command(self, client, msg):
-        from protocol.message import Message
+        from agentirc.protocol.message import Message
 
         text = msg.params[0] if msg.params else ""
         await client.send(

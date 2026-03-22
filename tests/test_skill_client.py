@@ -4,8 +4,8 @@ import os
 import tempfile
 import pytest
 
-from clients.claude.ipc import make_response, make_whisper, encode_message
-from clients.claude.skill.irc_client import SkillClient
+from agentirc.clients.claude.ipc import make_response, make_whisper, encode_message
+from agentirc.clients.claude.skill.irc_client import SkillClient
 
 
 @pytest.mark.asyncio

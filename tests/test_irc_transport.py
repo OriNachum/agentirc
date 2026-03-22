@@ -1,7 +1,7 @@
 import asyncio
 import pytest
-from clients.claude.irc_transport import IRCTransport
-from clients.claude.message_buffer import MessageBuffer
+from agentirc.clients.claude.irc_transport import IRCTransport
+from agentirc.clients.claude.message_buffer import MessageBuffer
 
 
 @pytest.mark.asyncio

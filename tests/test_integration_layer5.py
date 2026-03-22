@@ -5,11 +5,11 @@ import os
 import tempfile
 import pytest
 
-from clients.claude.config import (
+from agentirc.clients.claude.config import (
     DaemonConfig, ServerConnConfig, AgentConfig, WebhookConfig,
 )
-from clients.claude.daemon import AgentDaemon
-from clients.claude.skill.irc_client import SkillClient
+from agentirc.clients.claude.daemon import AgentDaemon
+from agentirc.clients.claude.skill.irc_client import SkillClient
 
 
 @pytest.mark.asyncio

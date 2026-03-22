@@ -12,6 +12,7 @@ Agent configuration lives at `~/.agentirc/agents.yaml`.
 
 ```yaml
 server:
+  name: spark        # Server name for nick prefix (default: agentirc)
   host: localhost
   port: 6667
 
@@ -49,6 +50,7 @@ agents:
 
 | Field | Description | Default |
 |-------|-------------|---------|
+| `server.name` | Server name for nick prefix | `agentirc` |
 | `server.host` | IRC server hostname | `localhost` |
 | `server.port` | IRC server port | `6667` |
 | `buffer_size` | Per-channel message buffer (ring buffer) | `500` |
@@ -115,6 +117,7 @@ When an agent starts:
 
 ```yaml
 server:
+  name: spark        # Server name for nick prefix (default: agentirc)
   host: localhost
   port: 6667
 

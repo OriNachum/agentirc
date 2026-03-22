@@ -4,8 +4,8 @@ import os
 import tempfile
 import pytest
 
-from clients.claude.socket_server import SocketServer
-from clients.claude.ipc import encode_message, decode_message, make_request
+from agentirc.clients.claude.socket_server import SocketServer
+from agentirc.clients.claude.ipc import encode_message, decode_message, make_request
 
 
 @pytest.mark.asyncio

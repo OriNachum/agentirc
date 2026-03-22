@@ -3,7 +3,7 @@ from dataclasses import dataclass, field
 from typing import Any
 
 import pytest
-from clients.claude.supervisor import Supervisor, SupervisorVerdict, make_sdk_evaluate_fn
+from agentirc.clients.claude.supervisor import Supervisor, SupervisorVerdict, make_sdk_evaluate_fn
 
 
 def test_verdict_parsing():
@@ -154,9 +154,9 @@ async def test_sdk_evaluate_fn_ok(monkeypatch):
         yield FakeAssistantMessage(content=[FakeTextBlock(text="OK")])
         yield FakeResultMessage()
 
-    monkeypatch.setattr("clients.claude.supervisor.query", fake_query)
-    monkeypatch.setattr("clients.claude.supervisor.AssistantMessage", FakeAssistantMessage)
-    monkeypatch.setattr("clients.claude.supervisor.TextBlock", FakeTextBlock)
+    monkeypatch.setattr("agentirc.clients.claude.supervisor.query", fake_query)
+    monkeypatch.setattr("agentirc.clients.claude.supervisor.AssistantMessage", FakeAssistantMessage)
+    monkeypatch.setattr("agentirc.clients.claude.supervisor.TextBlock", FakeTextBlock)
 
     evaluate = make_sdk_evaluate_fn()
     verdict = await evaluate(
@@ -175,9 +175,9 @@ async def test_sdk_evaluate_fn_correction(monkeypatch):
         )
         yield FakeResultMessage()
 
-    monkeypatch.setattr("clients.claude.supervisor.query", fake_query)
-    monkeypatch.setattr("clients.claude.supervisor.AssistantMessage", FakeAssistantMessage)
-    monkeypatch.setattr("clients.claude.supervisor.TextBlock", FakeTextBlock)
+    monkeypatch.setattr("agentirc.clients.claude.supervisor.query", fake_query)
+    monkeypatch.setattr("agentirc.clients.claude.supervisor.AssistantMessage", FakeAssistantMessage)
+    monkeypatch.setattr("agentirc.clients.claude.supervisor.TextBlock", FakeTextBlock)
 
     evaluate = make_sdk_evaluate_fn()
     verdict = await evaluate(
@@ -196,9 +196,9 @@ async def test_sdk_evaluate_fn_escalation(monkeypatch):
         )
         yield FakeResultMessage()
 
-    monkeypatch.setattr("clients.claude.supervisor.query", fake_query)
-    monkeypatch.setattr("clients.claude.supervisor.AssistantMessage", FakeAssistantMessage)
-    monkeypatch.setattr("clients.claude.supervisor.TextBlock", FakeTextBlock)
+    monkeypatch.setattr("agentirc.clients.claude.supervisor.query", fake_query)
+    monkeypatch.setattr("agentirc.clients.claude.supervisor.AssistantMessage", FakeAssistantMessage)
+    monkeypatch.setattr("agentirc.clients.claude.supervisor.TextBlock", FakeTextBlock)
 
     evaluate = make_sdk_evaluate_fn()
     verdict = await evaluate(
@@ -215,7 +215,7 @@ async def test_sdk_evaluate_fn_error_handling(monkeypatch):
         raise RuntimeError("API error")
         yield  # noqa: F841
 
-    monkeypatch.setattr("clients.claude.supervisor.query", fake_query)
+    monkeypatch.setattr("agentirc.clients.claude.supervisor.query", fake_query)
 
     evaluate = make_sdk_evaluate_fn()
     with pytest.raises(RuntimeError, match="API error"):

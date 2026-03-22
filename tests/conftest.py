@@ -1,8 +1,8 @@
 # tests/conftest.py
 import asyncio
 import pytest_asyncio
-from server.config import LinkConfig, ServerConfig
-from server.ircd import IRCd
+from agentirc.server.config import LinkConfig, ServerConfig
+from agentirc.server.ircd import IRCd
 
 
 class IRCTestClient:

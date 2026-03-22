@@ -3,8 +3,8 @@ import asyncio
 
 import pytest
 
-from server.skills.history import HistorySkill
-from server.skill import Event, EventType
+from agentirc.server.skills.history import HistorySkill
+from agentirc.server.skill import Event, EventType
 
 
 # --- Task 4: Recording tests ---

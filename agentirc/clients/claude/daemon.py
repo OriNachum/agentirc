@@ -5,14 +5,15 @@ import logging
 import os
 import time
 
-from clients.claude.config import DaemonConfig, AgentConfig
-from clients.claude.ipc import make_response
-from clients.claude.irc_transport import IRCTransport
-from clients.claude.message_buffer import MessageBuffer
-from clients.claude.socket_server import SocketServer
-from clients.claude.webhook import WebhookClient, AlertEvent
-from clients.claude.agent_runner import AgentRunner
-from clients.claude.supervisor import Supervisor, SupervisorVerdict, make_sdk_evaluate_fn
+from agentirc.clients.claude.config import DaemonConfig, AgentConfig
+from agentirc.clients.claude.ipc import make_response
+from agentirc.clients.claude.irc_transport import IRCTransport
+from agentirc.pidfile import write_pid, remove_pid
+from agentirc.clients.claude.message_buffer import MessageBuffer
+from agentirc.clients.claude.socket_server import SocketServer
+from agentirc.clients.claude.webhook import WebhookClient, AlertEvent
+from agentirc.clients.claude.agent_runner import AgentRunner
+from agentirc.clients.claude.supervisor import Supervisor, SupervisorVerdict, make_sdk_evaluate_fn
 
 logger = logging.getLogger(__name__)
 
@@ -52,12 +53,20 @@ class AgentDaemon:
         self._crash_times: list[float] = []
         self._circuit_open = False
 
+        # Graceful shutdown
+        self._stop_event: asyncio.Event | None = None
+        self._pid_name: str = ""
+
     # ------------------------------------------------------------------
     # Lifecycle
     # ------------------------------------------------------------------
 
     async def start(self) -> None:
         """Start all components in dependency order."""
+        # 0. Write PID file for this agent
+        self._pid_name = f"agent-{self.agent.nick}"
+        write_pid(self._pid_name, os.getpid())
+
         # 1. Message buffer
         self._buffer = MessageBuffer(max_per_channel=self.config.buffer_size)
 
@@ -121,7 +130,24 @@ class AgentDaemon:
             await self._transport.disconnect()
             self._transport = None
 
+        # Remove PID file
+        if self._pid_name:
+            remove_pid(self._pid_name)
+
         logger.info("AgentDaemon stopped for %s", self.agent.nick)
+
+    async def _graceful_shutdown(self) -> None:
+        """Trigger a graceful shutdown, signaling any waiting stop event."""
+        logger.info("Graceful shutdown requested for %s", self.agent.nick)
+        if self._stop_event is not None:
+            self._stop_event.set()
+        else:
+            # No external stop_event — stop directly
+            await self.stop()
+
+    def set_stop_event(self, event: asyncio.Event) -> None:
+        """Register an external stop event that _graceful_shutdown will signal."""
+        self._stop_event = event
 
     # ------------------------------------------------------------------
     # Agent runner helpers
@@ -281,6 +307,10 @@ class AgentDaemon:
 
             elif msg_type == "clear":
                 return await self._ipc_clear(req_id)
+
+            elif msg_type == "shutdown":
+                asyncio.create_task(self._graceful_shutdown())
+                return make_response(req_id, ok=True)
 
             else:
                 return make_response(req_id, ok=False, error=f"Unknown message type: {msg_type!r}")

@@ -4,8 +4,8 @@ from http.server import HTTPServer, BaseHTTPRequestHandler
 import threading
 import pytest
 
-from clients.claude.webhook import WebhookClient, AlertEvent
-from clients.claude.config import WebhookConfig
+from agentirc.clients.claude.webhook import WebhookClient, AlertEvent
+from agentirc.clients.claude.config import WebhookConfig
 
 
 class WebhookCapture(BaseHTTPRequestHandler):

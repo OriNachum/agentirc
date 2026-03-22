@@ -1,4 +1,4 @@
-from protocol.message import Message
+from agentirc.protocol.message import Message
 
 
 class TestMessageParse:

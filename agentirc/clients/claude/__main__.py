@@ -14,8 +14,8 @@ import signal
 import sys
 from pathlib import Path
 
-from clients.claude.config import load_config
-from clients.claude.daemon import AgentDaemon
+from agentirc.clients.claude.config import load_config
+from agentirc.clients.claude.daemon import AgentDaemon
 
 logger = logging.getLogger("agentirc")
 

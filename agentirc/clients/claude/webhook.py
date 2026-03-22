@@ -7,7 +7,7 @@ import urllib.request
 from dataclasses import dataclass
 from typing import Callable, Awaitable
 
-from clients.claude.config import WebhookConfig
+from agentirc.clients.claude.config import WebhookConfig
 
 logger = logging.getLogger(__name__)
 

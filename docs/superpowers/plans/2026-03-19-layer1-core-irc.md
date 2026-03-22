@@ -30,7 +30,7 @@ agentirc/
 │   └── commands.py               # Command verb constants
 ├── server/
 │   ├── __init__.py
-│   ├── __main__.py               # Entry point: python -m server
+│   ├── __main__.py               # Entry point: agentirc server start
 │   ├── config.py                 # Server configuration dataclass
 │   ├── ircd.py                   # Main IRCd class (asyncio TCP listener)
 │   ├── client.py                 # Connected client state & command handlers
@@ -128,7 +128,7 @@ git commit -m "chore: project scaffolding with uv, pytest"
 
 ```python
 # tests/test_message.py
-from protocol.message import Message
+from agentirc.protocol.message import Message
 
 
 class TestMessageParse:
@@ -383,7 +383,7 @@ from __future__ import annotations
 from typing import TYPE_CHECKING
 
 if TYPE_CHECKING:
-    from server.client import Client
+    from agentirc.server.client import Client
 
 
 class Channel:
@@ -427,8 +427,8 @@ Create `tests/conftest.py` first (fixtures must exist before tests reference the
 # tests/conftest.py
 import asyncio
 import pytest_asyncio
-from server.config import ServerConfig
-from server.ircd import IRCd
+from agentirc.server.config import ServerConfig
+from agentirc.server.ircd import IRCd
 
 
 class IRCTestClient:
@@ -546,11 +546,11 @@ from __future__ import annotations
 import asyncio
 from typing import TYPE_CHECKING
 
-from server.config import ServerConfig
-from server.channel import Channel
+from agentirc.server.config import ServerConfig
+from agentirc.server.channel import Channel
 
 if TYPE_CHECKING:
-    from server.client import Client
+    from agentirc.server.client import Client
 
 
 class IRCd:
@@ -577,7 +577,7 @@ class IRCd:
     async def _handle_connection(
         self, reader: asyncio.StreamReader, writer: asyncio.StreamWriter
     ) -> None:
-        from server.client import Client
+        from agentirc.server.client import Client
 
         client = Client(reader, writer, self)
         try:
@@ -615,12 +615,12 @@ from __future__ import annotations
 import asyncio
 from typing import TYPE_CHECKING
 
-from protocol.message import Message
-from protocol import replies
+from agentirc.protocol.message import Message
+from agentirc.protocol import replies
 
 if TYPE_CHECKING:
-    from server.ircd import IRCd
-    from server.channel import Channel
+    from agentirc.server.ircd import IRCd
+    from agentirc.server.channel import Channel
 
 
 class Client:
@@ -1494,8 +1494,8 @@ git commit -m "feat: QUIT handler with channel notification"
 import argparse
 import asyncio
 
-from server.config import ServerConfig
-from server.ircd import IRCd
+from agentirc.server.config import ServerConfig
+from agentirc.server.ircd import IRCd
 
 
 async def main() -> None:
@@ -1524,14 +1524,14 @@ if __name__ == "__main__":
 
 - [ ] **Step 2: Verify it starts**
 
-Run: `timeout 2 uv run python -m server --name spark --port 16667 || true`
+Run: `timeout 2 uv run agentirc server start --name spark --port 16667 || true`
 Expected: Prints `agentirc 'spark' listening on 0.0.0.0:16667` then exits on timeout
 
 - [ ] **Step 3: Commit**
 
 ```bash
 git add server/__main__.py
-git commit -m "feat: server entry point — python -m server"
+git commit -m "feat: server entry point — agentirc server start"
 ```
 
 ---
@@ -1555,10 +1555,10 @@ A minimal IRC server implementing the core of RFC 2812. Accepts connections from
 
 ```bash
 # Start with default settings (name: agentirc, port: 6667)
-uv run python -m server
+uv run agentirc server start
 
 # Start with custom name and port
-uv run python -m server --name spark --port 6667
+uv run agentirc server start --name spark --port 6667
 ```
 
 ## Supported Commands
@@ -1615,7 +1615,7 @@ This is not automated — it's the milestone from the spec.
 
 - [ ] **Step 1: Start the server**
 
-Run: `uv run python -m server --name spark --port 6667`
+Run: `uv run agentirc server start --name spark --port 6667`
 
 - [ ] **Step 2: Connect with weechat (in a separate terminal)**
 

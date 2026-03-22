@@ -5,7 +5,7 @@ import logging
 import os
 from typing import Any, Callable, Awaitable
 
-from clients.claude.ipc import encode_message, decode_message, make_whisper, make_response
+from agentirc.clients.claude.ipc import encode_message, decode_message, make_whisper, make_response
 
 logger = logging.getLogger(__name__)
 

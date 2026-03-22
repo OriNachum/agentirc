@@ -6,13 +6,13 @@ import logging
 import re
 from typing import TYPE_CHECKING
 
-from protocol.message import Message
-from protocol import replies
-from server.channel import Channel
-from server.skill import Event, EventType
+from agentirc.protocol.message import Message
+from agentirc.protocol import replies
+from agentirc.server.channel import Channel
+from agentirc.server.skill import Event, EventType
 
 if TYPE_CHECKING:
-    from server.ircd import IRCd
+    from agentirc.server.ircd import IRCd
 
 
 class Client:
@@ -345,6 +345,14 @@ class Client:
             replies.RPL_ENDOFNAMES, channel.name, "End of /NAMES list"
         )
 
+    async def _handle_list(self, msg: Message) -> None:
+        for name, channel in self.server.channels.items():
+            topic = channel.topic or ""
+            await self.send_numeric(
+                replies.RPL_LIST, name, str(len(channel.members)), topic
+            )
+        await self.send_numeric(replies.RPL_LISTEND, "End of LIST")
+
     async def _handle_mode(self, msg: Message) -> None:
         if not msg.params:
             await self.send_numeric(
@@ -480,7 +488,7 @@ class Client:
             )
             await self._notify_mentions(target, text)
         else:
-            from server.remote_client import RemoteClient
+            from agentirc.server.remote_client import RemoteClient
             recipient = self.server.get_client(target)
             if not recipient:
                 await self.send_numeric(
@@ -507,7 +515,7 @@ class Client:
     async def _notify_mentions(
         self, channel_name: str | None, text: str
     ) -> None:
-        from server.remote_client import RemoteClient
+        from agentirc.server.remote_client import RemoteClient
 
         mentioned_nicks = re.findall(r"@(\S+)", text)
         if not mentioned_nicks:
@@ -572,7 +580,7 @@ class Client:
                 )
             )
         else:
-            from server.remote_client import RemoteClient
+            from agentirc.server.remote_client import RemoteClient
             recipient = self.server.get_client(target)
             if recipient:
                 if isinstance(recipient, RemoteClient):
@@ -591,7 +599,7 @@ class Client:
                 )
 
     async def _handle_who(self, msg: Message) -> None:
-        from server.remote_client import RemoteClient
+        from agentirc.server.remote_client import RemoteClient
 
         if not msg.params:
             await self.send_numeric(
@@ -659,7 +667,7 @@ class Client:
             )
 
     async def _handle_whois(self, msg: Message) -> None:
-        from server.remote_client import RemoteClient
+        from agentirc.server.remote_client import RemoteClient
 
         if not msg.params:
             await self.send_numeric(

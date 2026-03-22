@@ -6,14 +6,14 @@ import logging
 from collections import deque
 from typing import TYPE_CHECKING
 
-from server.config import ServerConfig
-from server.channel import Channel
-from server.skill import Event, Skill
+from agentirc.server.config import ServerConfig
+from agentirc.server.channel import Channel
+from agentirc.server.skill import Event, Skill
 
 if TYPE_CHECKING:
-    from server.client import Client
-    from server.remote_client import RemoteClient
-    from server.server_link import ServerLink
+    from agentirc.server.client import Client
+    from agentirc.server.remote_client import RemoteClient
+    from agentirc.server.server_link import ServerLink
 
 
 class IRCd:
@@ -41,7 +41,7 @@ class IRCd:
         )
 
     async def _register_default_skills(self) -> None:
-        from server.skills.history import HistorySkill
+        from agentirc.server.skills.history import HistorySkill
 
         await self.register_skill(HistorySkill())
 
@@ -105,7 +105,7 @@ class IRCd:
         self, host: str, port: int, password: str
     ) -> ServerLink:
         """Initiate an outbound S2S connection."""
-        from server.server_link import ServerLink
+        from agentirc.server.server_link import ServerLink
 
         reader, writer = await asyncio.open_connection(host, port)
         link = ServerLink(reader, writer, self, password, initiator=True)
@@ -116,9 +116,9 @@ class IRCd:
         self, reader: asyncio.StreamReader, writer: asyncio.StreamWriter
     ) -> None:
         """Peek at first message to detect S2S vs C2S."""
-        from server.client import Client
-        from server.server_link import ServerLink
-        from protocol.message import Message
+        from agentirc.server.client import Client
+        from agentirc.server.server_link import ServerLink
+        from agentirc.protocol.message import Message
 
         # Read first line to detect connection type
         first_data = await reader.read(4096)
@@ -169,8 +169,8 @@ class IRCd:
 
     def _remove_link(self, link: ServerLink) -> None:
         """Remove a S2S link and all its remote clients."""
-        from protocol.message import Message
-        from server.remote_client import RemoteClient
+        from agentirc.protocol.message import Message
+        from agentirc.server.remote_client import RemoteClient
 
         peer_name = link.peer_name
         if peer_name and peer_name in self.links:

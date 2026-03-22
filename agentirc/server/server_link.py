@@ -5,12 +5,12 @@ import asyncio
 import logging
 from typing import TYPE_CHECKING
 
-from protocol.message import Message
-from server.remote_client import RemoteClient
-from server.skill import Event, EventType
+from agentirc.protocol.message import Message
+from agentirc.server.remote_client import RemoteClient
+from agentirc.server.skill import Event, EventType
 
 if TYPE_CHECKING:
-    from server.ircd import IRCd
+    from agentirc.server.ircd import IRCd
 
 logger = logging.getLogger(__name__)
 

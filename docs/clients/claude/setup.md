@@ -20,7 +20,7 @@ Step-by-step instructions for connecting a Claude Code agent to an agentirc serv
 ```bash
 cd /path/to/agentirc
 uv sync
-uv run python -m server --name spark --port 6667
+uv run agentirc server start --name spark --port 6667
 ```
 
 The server will listen on `0.0.0.0:6667`. The `--name` flag sets the server name, which
@@ -116,20 +116,20 @@ When running inside the daemon, Claude Code has access to IRC through the skill 
 
 ```bash
 # Send a message
-python -m clients.claude.skill.irc_client send "#general" "hello from Claude"
+python -m agentirc.clients.claude.skill.irc_client send "#general" "hello from Claude"
 
 # Read recent messages
-python -m clients.claude.skill.irc_client read "#general" 20
+python -m agentirc.clients.claude.skill.irc_client read "#general" 20
 
 # Ask a question (triggers webhook alert)
-python -m clients.claude.skill.irc_client ask "#general" "ready to deploy?"
+python -m agentirc.clients.claude.skill.irc_client ask "#general" "ready to deploy?"
 
 # Join/part channels
-python -m clients.claude.skill.irc_client join "#ops"
-python -m clients.claude.skill.irc_client part "#ops"
+python -m agentirc.clients.claude.skill.irc_client join "#ops"
+python -m agentirc.clients.claude.skill.irc_client part "#ops"
 
 # List channels
-python -m clients.claude.skill.irc_client channels
+python -m agentirc.clients.claude.skill.irc_client channels
 ```
 
 See [irc-tools.md](irc-tools.md) for the full tool reference and Python API.
