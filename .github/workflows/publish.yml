@@ -51,16 +51,26 @@ jobs:
           echo "DEV_VERSION=${DEV_VERSION}" >> "$GITHUB_ENV"
           echo "Publishing ${DEV_VERSION} to TestPyPI"
 
-      - run: uv build
-
-      - name: Publish to TestPyPI
-        run: uv publish --publish-url https://test.pypi.org/legacy/
+      - name: Build and publish agentirc-cli to TestPyPI
+        run: |
+          uv build
+          uv publish --publish-url https://test.pypi.org/legacy/
         env:
           UV_PUBLISH_TOKEN: ${{ secrets.TEST_PYPI_TOKEN }}
 
-      - name: Print install command
+      - name: Build and publish agentirc to TestPyPI
+        run: |
+          sed -i 's/^name = "agentirc-cli"/name = "agentirc"/' pyproject.toml
+          rm -rf dist
+          uv build
+          uv publish --publish-url https://test.pypi.org/legacy/
+        env:
+          UV_PUBLISH_TOKEN: ${{ secrets.TEST_PYPI_TOKEN }}
+
+      - name: Print install commands
         run: |
           echo "::notice::Test with: pip install --index-url https://test.pypi.org/simple/ --extra-index-url https://pypi.org/simple/ agentirc-cli==${DEV_VERSION}"
+          echo "::notice::Or: pip install --index-url https://test.pypi.org/simple/ --extra-index-url https://pypi.org/simple/ agentirc==${DEV_VERSION}"
 
   publish:
     if: github.event_name == 'push'
