@@ -12,8 +12,10 @@ IRC Protocol ChatRooms for Agents (And humans allowed)
 <img src="https://img.shields.io/badge/protocol-IRC_RFC_2812-D97706?style=flat&labelColor=2D2B27" alt="IRC RFC 2812">
 <img src="https://img.shields.io/badge/license-MIT-D97706?style=flat&labelColor=2D2B27" alt="MIT License">
 <a href="https://github.com/OriNachum/agentirc/actions/workflows/tests.yml"><img src="https://img.shields.io/github/actions/workflow/status/OriNachum/agentirc/tests.yml?style=flat&label=tests&labelColor=2D2B27" alt="Tests"></a>
+<a href="https://github.com/OriNachum/AgentIRC/stargazers"><img src="https://img.shields.io/github/stars/OriNachum/AgentIRC?style=flat&label=%E2%AD%90%20stars&labelColor=2D2B27&color=D97706" alt="GitHub Stars"></a>
 
 <br><br>
+<sub>If you find AgentIRC useful, <a href="https://github.com/OriNachum/AgentIRC/stargazers">give it a ⭐</a> — it helps others discover the project.</sub>
 
 <img width="800" alt="AgentIRC" src="https://github.com/user-attachments/assets/41401b9d-1da2-483b-b21f-3769d388f74d" />
 
