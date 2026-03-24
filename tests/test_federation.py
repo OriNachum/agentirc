@@ -899,11 +899,19 @@ async def _make_linked_pair(*, trust: str = "full"):
     config_b.links[0].port = server_a.config.port
 
     # Server A connects to Server B (pass trust level)
-    await server_a.connect_to_peer("127.0.0.1", server_b.config.port, password, trust=trust)
-    for _ in range(50):
-        if "beta" in server_a.links and "alpha" in server_b.links:
-            break
-        await asyncio.sleep(0.05)
+    try:
+        await server_a.connect_to_peer("127.0.0.1", server_b.config.port, password, trust=trust)
+        for _ in range(50):
+            if "beta" in server_a.links and "alpha" in server_b.links:
+                break
+            await asyncio.sleep(0.05)
+
+        assert "beta" in server_a.links and "alpha" in server_b.links, \
+            "Server link handshake failed — link not established"
+    except Exception:
+        await server_a.stop()
+        await server_b.stop()
+        raise
 
     return server_a, server_b
 
@@ -924,6 +932,11 @@ async def test_full_link_restricted_channel_not_relayed():
     server_a, server_b = await _make_linked_pair(trust="full")
 
     try:
+        # Connect Bob on server B first and join #secret
+        client_b = await _connect_client(server_b, "beta-bob", "bob")
+        await client_b.send("JOIN #secret")
+        await client_b.recv_all(timeout=0.5)
+
         client_a = await _connect_client(server_a, "alpha-alice", "alice")
         await client_a.send("JOIN #secret")
         await client_a.recv_all(timeout=0.5)
@@ -939,17 +952,12 @@ async def test_full_link_restricted_channel_not_relayed():
         assert channel_a is not None, "Channel should exist on server A"
         assert channel_a.restricted, "Channel should be restricted (+R)"
 
+        # Drain Bob's buffer before sending the test message
+        await client_b.recv_all(timeout=0.5)
+
         # Send a message to #secret
         await client_a.send("PRIVMSG #secret :top secret info")
         await asyncio.sleep(0.5)
-
-        # Server B should NOT have #secret as a channel with any local relevance
-        # (it may have been created during burst before +R was set, but messages
-        # should not relay)
-        client_b = await _connect_client(server_b, "beta-bob", "bob")
-        await client_b.send("JOIN #secret")
-        await client_b.recv_all(timeout=0.5)
-        await asyncio.sleep(0.3)
 
         # Bob should NOT have received the "top secret info" message
         resp = await client_b.recv_all(timeout=0.5)
@@ -974,24 +982,22 @@ async def test_restricted_link_no_share_not_relayed():
     server_a, server_b = await _make_linked_pair(trust="restricted")
 
     try:
+        # Connect Bob on server B first and join #general
+        client_b = await _connect_client(server_b, "beta-bob", "bob")
+        await client_b.send("JOIN #general")
+        await client_b.recv_all(timeout=0.5)
+
         client_a = await _connect_client(server_a, "alpha-alice", "alice")
         await client_a.send("JOIN #general")
         await client_a.recv_all(timeout=0.5)
         await asyncio.sleep(0.3)
 
+        # Drain Bob's buffer
+        await client_b.recv_all(timeout=0.5)
+
         # Send a message -- no +S is set, so nothing should cross
         await client_a.send("PRIVMSG #general :hello from alpha")
         await asyncio.sleep(0.5)
-
-        # Server B should NOT have #general (no +S set on a restricted link)
-        assert "#general" not in server_b.channels, \
-            f"Channel #general should NOT exist on server B: {list(server_b.channels.keys())}"
-
-        # Also verify with a client on server B
-        client_b = await _connect_client(server_b, "beta-bob", "bob")
-        await client_b.send("JOIN #general")
-        await client_b.recv_all(timeout=0.5)
-        await asyncio.sleep(0.3)
 
         # Bob's #general is local to server B, should NOT have received the message
         resp = await client_b.recv_all(timeout=0.5)

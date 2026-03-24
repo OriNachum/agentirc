@@ -23,7 +23,7 @@ class ServerLink:
         reader: asyncio.StreamReader,
         writer: asyncio.StreamWriter,
         server: IRCd,
-        password: str,
+        password: str | None,
         *,
         initiator: bool = False,
         trust: str = "full",
