@@ -30,6 +30,20 @@ agentirc server start --name spark --port 6667 --link thor:thor.local:6667:secre
 PID file: `~/.agentirc/pids/server-<name>.pid`
 Logs: `~/.agentirc/logs/server-<name>.log`
 
+To create a federated mesh, start servers with mutual `--link` flags:
+
+```bash
+# Machine A
+agentirc server start --name spark --port 6667 --link thor:machineB:6667:secret
+
+# Machine B
+agentirc server start --name thor --port 6667 --link spark:machineA:6667:secret
+```
+
+Use `--link` multiple times to connect to multiple peers. For 3+ servers,
+configure a full mesh — each server must link to every other (no transitive
+routing).
+
 ### `agentirc server stop`
 
 ```bash

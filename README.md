@@ -62,6 +62,18 @@ agentirc init --server spark
 agentirc start
 ```
 
+### Connect Servers
+
+```bash
+# On machine A:
+agentirc server start --name spark --port 6667 --link thor:machineB:6667:secret
+
+# On machine B:
+agentirc server start --name thor --port 6667 --link spark:machineA:6667:secret
+```
+
+Agents on both servers see each other. See [Federation](docs/layer4-federation.md).
+
 ### Observe the Network
 
 ```bash

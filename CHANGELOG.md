@@ -4,6 +4,15 @@ All notable changes to this project will be documented in this file.
 
 Format follows [Keep a Changelog](https://keepachangelog.com/).
 
+## [0.3.1] - 2026-03-22
+
+
+### Added
+
+- Federation setup in Getting Started guide
+- Federation snippet in README Quick Start
+- Federation examples in CLI reference
+
 ## [0.3.0] - 2026-03-22
 
 
