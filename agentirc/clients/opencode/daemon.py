@@ -1,7 +1,7 @@
-"""Codex agent daemon — bridges a Codex agent to the IRC network.
+"""OpenCode agent daemon — bridges an OpenCode agent to the IRC network.
 
-Uses CodexAgentRunner (codex app-server over JSON-RPC/stdio) and
-CodexSupervisor (codex exec for periodic evaluation).
+Uses OpenCodeAgentRunner (opencode acp over ACP/JSON-RPC/stdio) and
+OpenCodeSupervisor (opencode --non-interactive for periodic evaluation).
 """
 
 from __future__ import annotations
@@ -13,14 +13,14 @@ import time
 from collections import deque
 from typing import Any
 
-from agentirc.clients.codex.config import DaemonConfig, AgentConfig
-from agentirc.clients.codex.ipc import make_response
-from agentirc.clients.codex.irc_transport import IRCTransport
-from agentirc.clients.codex.message_buffer import MessageBuffer
-from agentirc.clients.codex.socket_server import SocketServer
-from agentirc.clients.codex.webhook import WebhookClient, AlertEvent
-from agentirc.clients.codex.agent_runner import CodexAgentRunner
-from agentirc.clients.codex.supervisor import CodexSupervisor
+from agentirc.clients.opencode.config import DaemonConfig, AgentConfig
+from agentirc.clients.opencode.ipc import make_response
+from agentirc.clients.opencode.irc_transport import IRCTransport
+from agentirc.clients.opencode.message_buffer import MessageBuffer
+from agentirc.clients.opencode.socket_server import SocketServer
+from agentirc.clients.opencode.webhook import WebhookClient, AlertEvent
+from agentirc.clients.opencode.agent_runner import OpenCodeAgentRunner
+from agentirc.clients.opencode.supervisor import OpenCodeSupervisor
 from agentirc.pidfile import write_pid, remove_pid
 
 logger = logging.getLogger(__name__)
@@ -30,20 +30,20 @@ CRASH_WINDOW_SECONDS = 300
 CRASH_RESTART_DELAY = 5
 
 
-class CodexDaemon:
+class OpenCodeDaemon:
     """Central orchestrator that ties together the IRC transport, socket server,
-    Codex agent runner, supervisor, and webhook client for a single agent nick."""
+    OpenCode agent runner, supervisor, and webhook client for a single agent nick."""
 
     def __init__(
         self,
         config: DaemonConfig,
         agent: AgentConfig,
         socket_dir: str | None = None,
-        skip_codex: bool = False,
+        skip_opencode: bool = False,
     ) -> None:
         self.config = config
         self.agent = agent
-        self.skip_codex = skip_codex
+        self.skip_opencode = skip_opencode
 
         self._socket_path = os.path.join(
             socket_dir or os.environ.get("XDG_RUNTIME_DIR", "/tmp"),
@@ -54,8 +54,8 @@ class CodexDaemon:
         self._transport: IRCTransport | None = None
         self._webhook: WebhookClient | None = None
         self._socket_server: SocketServer | None = None
-        self._agent_runner: CodexAgentRunner | None = None
-        self._supervisor: CodexSupervisor | None = None
+        self._agent_runner: OpenCodeAgentRunner | None = None
+        self._supervisor: OpenCodeSupervisor | None = None
 
         # FIFO queue of relay targets — each @mention enqueues a target,
         # each agent response dequeues one, ensuring correct routing even
@@ -108,8 +108,8 @@ class CodexDaemon:
         )
         await self._socket_server.start()
 
-        # 5. Supervisor using codex exec
-        self._supervisor = CodexSupervisor(
+        # 5. Supervisor using opencode --non-interactive
+        self._supervisor = OpenCodeSupervisor(
             model=self.config.supervisor.model,
             window_size=self.config.supervisor.window_size,
             eval_interval=self.config.supervisor.eval_interval,
@@ -118,12 +118,12 @@ class CodexDaemon:
             on_escalation=self._on_supervisor_escalation,
         )
 
-        # 6. Optionally start the Codex agent runner
-        if not self.skip_codex:
+        # 6. Optionally start the OpenCode agent runner
+        if not self.skip_opencode:
             await self._start_agent_runner()
 
         logger.info(
-            "CodexDaemon started for %s (socket=%s)", self.agent.nick, self._socket_path
+            "OpenCodeDaemon started for %s (socket=%s)", self.agent.nick, self._socket_path
         )
 
     async def stop(self) -> None:
@@ -144,7 +144,7 @@ class CodexDaemon:
         if self._pid_name:
             remove_pid(self._pid_name)
 
-        logger.info("CodexDaemon stopped for %s", self.agent.nick)
+        logger.info("OpenCodeDaemon stopped for %s", self.agent.nick)
 
     async def _graceful_shutdown(self) -> None:
         """Trigger a graceful shutdown, signaling any waiting stop event."""
@@ -164,7 +164,7 @@ class CodexDaemon:
     # ------------------------------------------------------------------
 
     async def _start_agent_runner(self) -> None:
-        self._agent_runner = CodexAgentRunner(
+        self._agent_runner = OpenCodeAgentRunner(
             model=self.agent.model,
             directory=self.agent.directory,
             system_prompt=self._build_system_prompt(),
@@ -172,12 +172,12 @@ class CodexDaemon:
             on_message=self._on_agent_message,
         )
         await self._agent_runner.start()
-        logger.info("CodexAgentRunner started for %s", self.agent.nick)
+        logger.info("OpenCodeAgentRunner started for %s", self.agent.nick)
 
     def _on_mention(self, target: str, sender: str, text: str) -> None:
         """Called by IRCTransport when the agent is @mentioned or DM'd.
 
-        Formats a prompt and enqueues it so the Codex session picks it up.
+        Formats a prompt and enqueues it so the OpenCode session picks it up.
         """
         if self._agent_runner and self._agent_runner.is_running():
             # Enqueue relay target (FIFO matches prompt queue order)
@@ -432,7 +432,7 @@ class CodexDaemon:
             return make_response(req_id, ok=False, error=f"Not a directory: {new_cwd}")
         # Update the daemon's working directory
         self.agent.directory = new_cwd
-        # Check for AGENTS.md (Codex equivalent of CLAUDE.md)
+        # Check for AGENTS.md (OpenCode equivalent of CLAUDE.md)
         agents_md = os.path.join(new_cwd, "AGENTS.md")
         agents_md_content = None
         if os.path.isfile(agents_md):
