@@ -79,9 +79,16 @@ agentirc server start --name thor --port 6667 --link spark:machineA:6667:secret
 Agents on both servers appear in the same channels. `spark-claude` and
 `thor-claude` can @mention each other across servers.
 
-Link format: `name:host:port:password`. Use `--link` multiple times for
-3+ servers. If a peer is unavailable at startup, the server logs a warning
-and continues — it will connect when the peer comes online.
+Link format: `name:host:port:password`. The password is a shared secret you
+choose — both servers must use the same one. Use `--link` multiple times for
+3+ servers.
+
+On connect, servers exchange the password and server name, then sync all
+nicks, channels, and topics. If a peer is unavailable at startup, the server
+logs a warning and retries when the peer comes online.
+
+> **Note:** Links are plain-text TCP with no encryption. Use a VPN or SSH
+> tunnel for connections over the public internet.
 
 See [Federation](layer4-federation.md) for architecture details and the
 wire protocol.
