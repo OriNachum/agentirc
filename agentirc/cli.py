@@ -346,12 +346,22 @@ def _cmd_init(args: argparse.Namespace) -> None:
             print(f"Agent '{full_nick}' already exists in config")
             sys.exit(1)
 
-    agent = AgentConfig(
-        nick=full_nick,
-        agent=args.agent,
-        directory=os.getcwd(),
-        channels=["#general"],
-    )
+    # Use backend-specific config for correct defaults
+    if args.agent == "codex":
+        from agentirc.clients.codex.config import AgentConfig as CodexAgentConfig
+        agent = CodexAgentConfig(
+            nick=full_nick,
+            agent="codex",
+            directory=os.getcwd(),
+            channels=["#general"],
+        )
+    else:
+        agent = AgentConfig(
+            nick=full_nick,
+            agent=args.agent,
+            directory=os.getcwd(),
+            channels=["#general"],
+        )
 
     add_agent_to_config(args.config, agent, server_name=server_name)
 
@@ -414,7 +424,17 @@ async def _run_single_agent(config: DaemonConfig, agent: AgentConfig) -> None:
 
     if backend == "codex":
         from agentirc.clients.codex.daemon import CodexDaemon
-        daemon = CodexDaemon(config, agent)
+        from agentirc.clients.codex.config import (
+            DaemonConfig as CodexDaemonConfig,
+        )
+        # Re-load config through Codex module for correct supervisor defaults
+        codex_config = CodexDaemonConfig(
+            server=config.server,
+            webhooks=config.webhooks,
+            buffer_size=config.buffer_size,
+            agents=config.agents,
+        )
+        daemon = CodexDaemon(codex_config, agent)
     else:
         from agentirc.clients.claude.daemon import AgentDaemon
         daemon = AgentDaemon(config, agent)

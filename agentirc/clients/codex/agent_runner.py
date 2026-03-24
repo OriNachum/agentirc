@@ -1,12 +1,10 @@
-"""Codex agent runner — wraps codex app-server over WebSocket."""
+"""Codex agent runner — manages codex app-server via JSON-RPC over stdio."""
 
 from __future__ import annotations
 
 import asyncio
 import json
 import logging
-import signal
-import subprocess
 from typing import Any, Awaitable, Callable
 
 logger = logging.getLogger(__name__)
@@ -57,7 +55,7 @@ class CodexAgentRunner:
             "codex", "app-server",
             stdin=asyncio.subprocess.PIPE,
             stdout=asyncio.subprocess.PIPE,
-            stderr=asyncio.subprocess.PIPE,
+            stderr=asyncio.subprocess.DEVNULL,
         )
 
         # Start reading responses
@@ -124,9 +122,6 @@ class CodexAgentRunner:
                 future.set_exception(ConnectionError("Runner stopped"))
         self._pending.clear()
 
-        if self.on_exit and not self._stopping:
-            await self.on_exit(0)
-
     async def send_prompt(self, text: str) -> None:
         """Queue a prompt for the agent."""
         await self._prompt_queue.put(text)
@@ -155,7 +150,13 @@ class CodexAgentRunner:
         self._process.stdin.write(line.encode())
         await self._process.stdin.drain()
 
-        return await asyncio.wait_for(future, timeout=30)
+        try:
+            return await asyncio.wait_for(future, timeout=30)
+        except (asyncio.TimeoutError, asyncio.CancelledError):
+            self._pending.pop(req_id, None)
+            if not future.done():
+                future.cancel()
+            raise
 
     async def _send_notification(self, method: str, params: dict) -> None:
         """Send a JSON-RPC notification (no response expected)."""
@@ -195,8 +196,30 @@ class CodexAgentRunner:
             pass
         except Exception:
             logger.exception("Codex read loop error")
+        finally:
+            # Wait for process to fully exit and notify daemon for crash recovery
+            returncode = -1
+            if self._process:
+                try:
+                    returncode = await asyncio.wait_for(
+                        self._process.wait(), timeout=5
+                    )
+                except asyncio.TimeoutError:
+                    try:
+                        self._process.kill()
+                    except ProcessLookupError:
+                        pass
+
+            # Fail any still-pending requests
+            for future in self._pending.values():
+                if not future.done():
+                    future.set_exception(ConnectionError("Process exited"))
+            self._pending.clear()
+
+            self._running = False
+
             if not self._stopping and self.on_exit:
-                await self.on_exit(1)
+                await self.on_exit(returncode)
 
     async def _handle_notification(self, msg: dict) -> None:
         """Handle server notifications."""

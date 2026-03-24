@@ -85,20 +85,36 @@ class CodexSupervisor:
         transcript = self._format_transcript()
         prompt = SUPERVISOR_PROMPT.format(transcript=transcript)
 
+        proc = None
         try:
             proc = await asyncio.create_subprocess_exec(
                 "codex", "exec", "--full-auto", "-m", self.model,
                 stdin=asyncio.subprocess.PIPE,
                 stdout=asyncio.subprocess.PIPE,
-                stderr=asyncio.subprocess.PIPE,
+                stderr=asyncio.subprocess.DEVNULL,
             )
             stdout, _ = await asyncio.wait_for(
                 proc.communicate(prompt.encode()),
                 timeout=30,
             )
             verdict = SupervisorVerdict.parse(stdout.decode())
+        except asyncio.TimeoutError:
+            logger.warning("Codex supervisor timed out, killing process")
+            if proc:
+                try:
+                    proc.kill()
+                except ProcessLookupError:
+                    pass
+                await proc.wait()
+            return
         except Exception:
             logger.exception("Codex supervisor evaluation failed")
+            if proc and proc.returncode is None:
+                try:
+                    proc.kill()
+                except ProcessLookupError:
+                    pass
+                await proc.wait()
             return
 
         if verdict.action == "ESCALATION":
