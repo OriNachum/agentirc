@@ -31,13 +31,29 @@ agent exclusively through these methods and callbacks.
 ### Lifecycle
 
 ```python
+from abc import ABC, abstractmethod
+from typing import Any, Awaitable, Callable
+
+
 class AgentRunnerBase(ABC):
-    async def start(self, initial_prompt: str = "") -> None
-    async def stop(self) -> None
-    async def send_prompt(self, text: str) -> None
-    def is_running(self) -> bool
+    on_message: Callable[[dict[str, Any]], Awaitable[None]] | None = None
+    on_exit: Callable[[int], Awaitable[None]] | None = None
+
+    @abstractmethod
+    async def start(self, initial_prompt: str = "") -> None: ...
+
+    @abstractmethod
+    async def stop(self) -> None: ...
+
+    @abstractmethod
+    async def send_prompt(self, text: str) -> None: ...
+
+    @abstractmethod
+    def is_running(self) -> bool: ...
+
     @property
-    def session_id(self) -> str | None
+    @abstractmethod
+    def session_id(self) -> str | None: ...
 ```
 
 ### Methods
@@ -86,28 +102,35 @@ The daemon sets these before calling `start()`:
 
 #### `on_message(msg: dict)`
 
-Called when the agent produces output. The dict contains:
+Called when the agent produces output. The dict structure matches the current
+Claude implementation:
 
 ```python
 {
-    "type": "text",       # or "tool_use", "thinking", etc.
-    "content": "...",     # the actual content
-    "model": "...",       # model that produced this
+    "type": "assistant",
+    "model": "claude-opus-4-6",
+    "content": [
+        {"type": "text", "text": "Here is my response..."},
+        {"type": "tool_use", "id": "...", "name": "...", "input": {...}},
+        {"type": "thinking", "thinking": "..."},
+    ],
 }
 ```
 
 Implementations MUST normalize their agent's output format to this dict
-structure. The daemon uses this to post messages to IRC and feed the
+structure. The `content` field is a list of content blocks, each with a
+`type` field. The daemon uses this to post messages to IRC and feed the
 supervisor.
 
 #### `on_exit(code: int)`
 
-Called when the agent process exits unexpectedly.
+Called whenever the agent process exits (cleanly or due to a crash).
 
-- `code = 0` — clean exit
-- `code != 0` — crash
+- `code = 0` — clean exit (e.g., after a successful `stop()`)
+- `code != 0` — crash or abnormal termination
 
-The daemon uses this to trigger restart logic (with circuit breaker).
+The daemon uses this to observe agent exits and, for non-zero exit codes,
+to trigger restart logic (with circuit breaker).
 
 ### Crash Recovery
 
@@ -126,11 +149,22 @@ The supervisor monitors agent activity and intervenes when the agent is
 unproductive, stuck, or spiraling.
 
 ```python
+from abc import ABC, abstractmethod
+from typing import Awaitable, Callable
+
+
 class SupervisorBase(ABC):
-    async def start(self) -> None
-    async def stop(self) -> None
-    async def observe(self, turn: dict) -> None
-    on_whisper: Callable[[str, str], None] | None  # (type, message)
+    on_whisper: Callable[[str, str], Awaitable[None]] | None = None  # (message, action)
+    on_escalation: Callable[[str], Awaitable[None]] | None = None
+
+    @abstractmethod
+    async def start(self) -> None: ...
+
+    @abstractmethod
+    async def stop(self) -> None: ...
+
+    @abstractmethod
+    async def observe(self, turn: dict) -> None: ...
 ```
 
 ### Supervisor Methods
@@ -152,14 +186,20 @@ After evaluation, the supervisor produces one of:
 | Verdict | Action |
 |---------|--------|
 | `OK` | Agent is productive, no intervention needed |
-| `CORRECTION` | Agent is stuck or unproductive — send a whisper with guidance |
-| `ESCALATION` | Agent is spiraling — alert via webhook, stop the agent |
+| `CORRECTION` | Agent is stuck — send a whisper with redirection guidance |
+| `THINK_DEEPER` | Agent should reflect more — send a whisper prompting deeper reasoning |
+| `ESCALATION` | Agent is spiraling — alert via webhook and pause the supervisor; the agent runner is NOT stopped automatically |
 
 ### Whisper Delivery
 
-When the supervisor issues a CORRECTION, it calls `on_whisper(type, message)`.
-The daemon delivers this to the agent via the IPC socket. The whisper appears
-in the agent's next tool call response (on stderr for the skill client).
+When the supervisor issues a CORRECTION or THINK_DEEPER, it calls
+`on_whisper(message, action)`. The daemon delivers this to the agent via
+the IPC socket. The whisper appears in the agent's next tool call response
+(on stderr for the skill client).
+
+When the supervisor issues an ESCALATION, it calls `on_escalation(message)`.
+The daemon fires a webhook alert. The supervisor pauses evaluation but the
+agent runner continues running.
 
 ### Evaluation Parameters
 
@@ -229,7 +269,7 @@ daemon routes them:
 | `irc_channels` | IRC transport: list joined channels |
 | `compact` | Agent runner: send `/compact` |
 | `clear` | Agent runner: send `/clear` |
-| `set_directory` | Agent runner: change working directory |
+| `set_directory` | Agent runner: change working directory (payload field: `path`) |
 | `shutdown` | Daemon: graceful shutdown |
 
 ## IPC Protocol
@@ -247,9 +287,21 @@ Falls back to `/tmp/agentirc-<nick>.sock` if `XDG_RUNTIME_DIR` is not set.
 
 ### Message Format
 
+Requests use the command as the `type` field:
+
 ```json
-{"type": "request", "id": "uuid", "msg_type": "irc_send", "channel": "#general", "message": "hello"}
-{"type": "response", "id": "uuid", "ok": true, "data": {...}}
+{"type": "irc_send", "id": "uuid-here", "channel": "#general", "message": "hello"}
+```
+
+Responses use `type: "response"`:
+
+```json
+{"type": "response", "id": "uuid-here", "ok": true, "data": {}}
+```
+
+Whispers are unsolicited messages from daemon to client:
+
+```json
 {"type": "whisper", "whisper_type": "CORRECTION", "message": "Try a different approach"}
 ```
 
@@ -297,11 +349,14 @@ in the agent's environment before starting it.
 
 ### Invocation
 
+Currently the skill client lives at:
+
 ```bash
-python3 -m agentirc.clients.shared.skill.irc_client <command> [args...]
+python3 -m agentirc.clients.claude.skill.irc_client <command> [args...]
 ```
 
-The module path is the same regardless of which agent backend is running.
+This will move to `agentirc.clients.shared.skill.irc_client` when the shared
+components are extracted (Phase 1 of the multi-agent harness plan).
 
 ## Configuration Schema
 
@@ -371,7 +426,7 @@ To add a new agent backend (e.g., `myagent`):
 2. Implement `agent_runner.py` with a class extending `AgentRunnerBase`
 3. Implement `supervisor.py` with a class extending `SupervisorBase`
 4. Create `skill/SKILL.md` with IRC command documentation
-5. Register the backend in `AgentDaemon._create_runner()`
+5. Register the backend in the daemon's agent runner factory
 6. Add to `agentirc skills install` CLI
 7. Write tests that verify the runner interface contract
 

@@ -174,8 +174,8 @@ class SkillClient:
         return await self._request("clear")
 
     async def set_directory(self, directory: str) -> dict[str, Any]:
-        """Change the working directory for the Claude agent runner."""
-        return await self._request("set_directory", directory=directory)
+        """Change the working directory for the agent runner."""
+        return await self._request("set_directory", path=directory)
 
 
 # ---------------------------------------------------------------------------
