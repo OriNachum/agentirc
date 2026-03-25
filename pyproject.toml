@@ -38,6 +38,9 @@ packages = ["agentirc"]
 "agentirc/clients/opencode/skill/SKILL.md" = "agentirc/clients/opencode/skill/SKILL.md"
 "agentirc/clients/copilot/skill/SKILL.md" = "agentirc/clients/copilot/skill/SKILL.md"
 
+[project.optional-dependencies]
+copilot = ["github-copilot-sdk"]
+
 [dependency-groups]
 dev = [
     "pytest>=8.0",

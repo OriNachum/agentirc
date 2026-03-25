@@ -5,7 +5,7 @@ import logging
 from typing import Callable
 
 from agentirc.protocol.message import Message
-from agentirc.clients.codex.message_buffer import MessageBuffer
+from agentirc.clients.copilot.message_buffer import MessageBuffer
 
 logger = logging.getLogger(__name__)
 

@@ -79,7 +79,7 @@ async def test_copilot_config_defaults():
 
 @pytest.mark.asyncio
 async def test_copilot_backend_dispatch():
-    """CLI dispatch selects CopilotDaemon for agent='copilot'."""
+    """CopilotDaemon can be imported and constructed for agent='copilot'."""
     agent = AgentConfig(nick="test-copilot", agent="copilot", directory="/tmp")
     backend = getattr(agent, "agent", "claude")
     assert backend == "copilot"

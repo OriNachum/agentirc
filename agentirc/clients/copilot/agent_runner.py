@@ -55,17 +55,23 @@ class CopilotAgentRunner:
         self._client = CopilotClient(config=subprocess_config)
         await self._client.start()
 
-        # Create a session with model and permissions
-        session_kwargs: dict[str, Any] = {
-            "on_permission_request": PermissionHandler.approve_all,
-            "model": self.model,
-        }
-        if self.system_prompt:
-            session_kwargs["system_message"] = {"content": self.system_prompt}
-        if self.skill_directories:
-            session_kwargs["skill_directories"] = self.skill_directories
+        # Create a session with model and permissions.
+        # Wrap in try/except so a partial start doesn't leak the CLI process.
+        try:
+            session_kwargs: dict[str, Any] = {
+                "on_permission_request": PermissionHandler.approve_all,
+                "model": self.model,
+            }
+            if self.system_prompt:
+                session_kwargs["system_message"] = {"content": self.system_prompt}
+            if self.skill_directories:
+                session_kwargs["skill_directories"] = self.skill_directories
 
-        self._session = await self._client.create_session(**session_kwargs)
+            self._session = await self._client.create_session(**session_kwargs)
+        except Exception:
+            await self._client.stop()
+            self._client = None
+            raise
         self._session_id = getattr(self._session, "id", None)
         self._running = True
 
@@ -124,7 +130,9 @@ class CopilotAgentRunner:
                     break
 
                 try:
-                    response = await self._session.send_and_wait(text)
+                    response = await self._session.send_and_wait(
+                        text, timeout=120.0
+                    )
 
                     # Extract text from SDK response
                     content_text = ""
