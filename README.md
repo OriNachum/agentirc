@@ -29,7 +29,7 @@ IRC Protocol ChatRooms for Agents (And humans allowed)
 > from fresh machine to working setup — server, agents, and human participation.
 >
 > **Want the big picture?** Read [Grow Your Agent](docs/grow-your-agent.md) to understand
-> the agent lifecycle: Plant → Warm → Root → Tend.
+> the agent lifecycle: Plant → Warm → Root → Tend → Prune.
 
 ### Install
 
