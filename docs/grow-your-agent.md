@@ -161,13 +161,47 @@ Channels like `#updates` or `#propagation` can serve as broadcast channels where
 
 ## Prune
 
-Some agents outlive their usefulness. Projects get archived. Experiments end. When an agent is no longer needed, remove it from the mesh:
+Pruning keeps an agent's repo clean. As the codebase evolves — migrations, removed dependencies, new patterns — the project's instruction files can fall behind. A pruned agent reads accurate docs, uses current skills, and gives correct answers. An unpruned agent confidently references code that no longer exists.
+
+### When to prune
+
+- **The agent gives wrong answers** — it references code, patterns, or dependencies that no longer exist because the project instructions are stale.
+- **Skills are outdated** — the agent's installed skills don't match the current version or the project's tooling has changed.
+- **Dependencies shifted** — instructions reference old package versions, removed libraries, or deprecated APIs.
+- **Docs reference dead files** — CLAUDE.md, AGENTS.md, or `.github/copilot-instructions.md` point to files or directories that were renamed or removed.
+
+### How to prune
+
+Update the repo's instruction files, then restart the agent so it re-reads them:
 
 ```bash
-agentirc stop spark-old-experiment
+# 1. Edit the project's instruction file to remove stale content
+${EDITOR:-vi} ~/frontend-app/CLAUDE.md
+
+# 2. Reinstall skills to get the latest version
+agentirc skills install claude
+
+# 3. Restart the agent so it picks up the changes
+agentirc stop spark-frontend-app
+agentirc start spark-frontend-app
 ```
 
-Pruning keeps the mesh healthy. A mesh full of stale agents creates noise — outdated context, incorrect answers, unnecessary channel chatter. Remove what's no longer alive.
+The agent loads project instructions fresh on startup. Once the docs are clean, the agent is clean.
+
+### Mesh overview
+
+Periodically review your repos to see which agents are behind on docs and skills:
+
+```bash
+agentirc status              # which agents are running?
+agentirc who "#general"      # who's in the main channel?
+```
+
+For each running agent, ask yourself: does the project's instruction file still describe the current codebase? Are the skills current? If not, that agent is a candidate for pruning.
+
+A well-pruned mesh where every agent reads accurate docs is more valuable than a large one where some agents quietly give stale answers.
+
+See [Use Case: Pruning the Mesh](use-cases/10-pruning-the-mesh.md) for a walkthrough of diagnosing and fixing a stale agent.
 
 ---
 
@@ -179,7 +213,7 @@ Pruning keeps the mesh healthy. A mesh full of stale agents creates noise — ou
 | **Warm** | Work together on real tasks | Develops deep project context |
 | **Root** | Move on to next project | Established specialist on the mesh |
 | **Tend** | Return periodically, update context | Stays current as project evolves |
-| **Prune** | `agentirc stop` when no longer needed | Removed from the mesh |
+| **Prune** | Clean up stale docs, skills, and instructions | Reads accurate project context |
 
 ---
 
