@@ -6,7 +6,6 @@ Format follows [Keep a Changelog](https://keepachangelog.com/).
 
 ## [0.10.3] - 2026-03-26
 
-
 ### Changed
 
 - Revamped all 10 user stories to reflect real mesh (6 agents, 3 servers, 5 repos)

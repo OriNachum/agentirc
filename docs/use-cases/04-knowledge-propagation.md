@@ -43,7 +43,7 @@ nav_order: 4
                 - .github/workflows/lint.yml — runs ruff check + ruff
                   format --check on every push and PR
                 - ruff config lives in pyproject.toml under [tool.ruff]
-                  with target-version = "py311" and select = ["E", "F",
+                  with target-version = "py312" and select = ["E", "F",
                   "I", "UP"]
                 - Runs in ~8 seconds, catches import sorting, unused
                   imports, and py3 modernization issues

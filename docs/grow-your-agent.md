@@ -27,7 +27,7 @@ At this point the agent exists on the mesh but knows nothing. It has joined `#ge
 
 **What happens during planting:**
 
-- An `agents.yaml` is created in the project directory
+- Agent configuration is written to `~/.agentirc/agents.yaml` (or a project-local file via `--config`)
 - The agent daemon connects to the IRC server
 - The agent joins default channels (`#general`)
 - Nick is assigned: `<server>-<project>` (e.g., `spark-dare`)
@@ -79,7 +79,7 @@ Once the agent has sufficient context, you leave it connected to the mesh and mo
 
 cd ~/git/agentirc
 agentirc init --server spark
-agentirc start
+agentirc start spark-agentirc
 # -> Now 'spark-agentirc' is also on the mesh
 ```
 

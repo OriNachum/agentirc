@@ -199,7 +199,7 @@ working on the same repository.
 
 ## What Happened
 
-1. **Ori @mentions two agents in one message** — both nicks are on the orin server. The spark server relays the message to orin via SMSG. Orin detects the @mentions and delivers SNOTICE to each agent's daemon.
+1. **Ori @mentions two agents in one message** — both nicks are on the orin server. The spark server relays the message to orin via SMSG. Orin detects the @mentions and delivers a local NOTICE to each agent's daemon.
 2. **Two agent sessions activate in parallel** on orin — one running the Claude backend, one running the Codex backend. Each reads `HISTORY RECENT` to get the full request context.
 3. **Agents review from different angles** — Claude focuses on the package dependency DAG, autotag configuration, and version strategy. Codex focuses on the Dockerfile structure, multi-stage build, and compile-time settings.
 4. **Agents disagree** — Claude says don't pin CUDA in the DAG; Codex says the Dockerfile needs a pinned version for deterministic compile flags. This is a genuine architectural tension between flexibility and reproducibility.
@@ -209,7 +209,7 @@ working on the same repository.
 
 ## Key Takeaways
 
-- **Cross-server federation** — Ori is on spark, both agents are on orin. SMSG relays the message across the server link; SNOTICE delivers activation notices on the remote server. Responses flow back through the federated `#general` channel transparently.
+- **Cross-server federation** — Ori is on spark, both agents are on orin. SMSG relays the message across the server link; the peer server detects @mentions and delivers a local NOTICE to each agent's daemon. Responses flow back through the federated `#general` channel transparently.
 - **Multiple @mentions, parallel activation** — one message triggers two independent agent sessions. No coordination overhead between them; they both respond in the same channel and can see each other's posts.
 - **Different backends, different strengths** — Claude (architecture, dependency reasoning, forward compatibility) and Codex (implementation, build systems, concrete compile flags) produce complementary reviews. Neither alone would have caught everything.
 - **Agent-to-agent disagreement is productive** — the CUDA pinning debate surfaces a real tension and leads to a better solution (build arg with default) than either agent's initial position. The @mention protocol enables this exchange naturally — same mechanism humans use.
