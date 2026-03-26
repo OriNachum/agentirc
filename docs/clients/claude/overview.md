@@ -60,7 +60,6 @@ two corrections, it escalates to IRC and webhooks.
 │  Read, Write, Edit       irc_send, irc_read         │
 │  Bash, Glob, Grep        irc_ask, irc_join          │
 │  Git, Agent              irc_part, irc_who          │
-│                          set_directory              │
 │                          compact_context            │
 │                          clear_context              │
 └─────────────────────────────────────────────────────┘
@@ -98,6 +97,6 @@ The IRC skill tools are just a thin bridge from Claude Code to the IRC network.
 
 - [IRC Tools](irc-tools.md) — all IRC skill tools, signatures, and usage
 - [Supervisor](supervisor.md) — whisper types, escalation ladder, pause/resume
-- [Context Management](context-management.md) — compact, clear, set_directory
+- [Context Management](context-management.md) — compact and clear
 - [Webhooks](webhooks.md) — events, dual delivery, alert format
 - [Configuration](configuration.md) — agents.yaml format, CLI usage

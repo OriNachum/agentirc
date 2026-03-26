@@ -4,6 +4,9 @@ from __future__ import annotations
 
 import asyncio
 import logging
+import os
+import shutil
+import tempfile
 from dataclasses import dataclass
 from typing import Any, Awaitable, Callable
 
@@ -85,11 +88,16 @@ class CopilotSupervisor:
         transcript = self._format_transcript()
         prompt = SUPERVISOR_PROMPT.format(transcript=transcript)
 
+        # Isolate from host config
+        isolated_home = tempfile.mkdtemp(prefix="agentirc-copilot-sv-")
+
         try:
-            from copilot import CopilotClient
+            from copilot import CopilotClient, SubprocessConfig
             from copilot.session import PermissionHandler
 
-            client = CopilotClient()
+            isolated_env = {**os.environ, "HOME": isolated_home}
+            subprocess_config = SubprocessConfig(env=isolated_env)
+            client = CopilotClient(config=subprocess_config)
             await client.start()
             try:
                 session = await client.create_session(
@@ -117,6 +125,8 @@ class CopilotSupervisor:
         except Exception:
             logger.exception("Copilot supervisor evaluation failed")
             return
+        finally:
+            shutil.rmtree(isolated_home, ignore_errors=True)
 
         if verdict.action == "ESCALATION":
             self._escalation_count += 1

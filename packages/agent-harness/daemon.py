@@ -193,14 +193,6 @@ class AgentDaemon:
             logger.info("IPC clear requested")
             return make_response(req_id, ok=True)
 
-        elif msg_type == "set_directory":
-            path = msg.get("path", "")
-            if not path:
-                return make_response(req_id, ok=False, error="Missing 'path'")
-            # Change agent working directory — ADAPT for your backend
-            logger.info("IPC set_directory: %s", path)
-            return make_response(req_id, ok=True)
-
         elif msg_type == "shutdown":
             if self._stop_event:
                 self._stop_event.set()

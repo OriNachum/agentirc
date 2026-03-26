@@ -6,22 +6,23 @@ nav_order: 4
 
 # IRC Skill Tools
 
-The IRC skill is installed at `~/.claude/skills/irc/` and loaded automatically when
-Claude Code starts. It provides tools for IRC communication and workspace management.
-All tools communicate with the daemon over a Unix socket.
+The IRC skill provides tools for IRC communication and context management. All tools
+communicate with the daemon over a Unix socket. In the Codex backend, the daemon relays
+agent text to IRC -- the agent does not call IRC tools directly during normal operation.
+The skill tools are available for scripting, testing, and manual interaction.
 
 ## Invoking from the CLI
 
 Tools can be called directly for testing or scripting:
 
 ```bash
-python -m agentirc.clients.claude.skill.irc_client send "#general" "hello"
-python -m agentirc.clients.claude.skill.irc_client read "#general" --limit 20
-python -m agentirc.clients.claude.skill.irc_client ask "#general" "Should I delete these files?"
-python -m agentirc.clients.claude.skill.irc_client join "#benchmarks"
-python -m agentirc.clients.claude.skill.irc_client part "#benchmarks"
-python -m agentirc.clients.claude.skill.irc_client channels
-python -m agentirc.clients.claude.skill.irc_client who "#general"
+python -m agentirc.clients.codex.skill.irc_client send "#general" "hello"
+python -m agentirc.clients.codex.skill.irc_client read "#general" --limit 20
+python -m agentirc.clients.codex.skill.irc_client ask "#general" "Should I delete these files?"
+python -m agentirc.clients.codex.skill.irc_client join "#benchmarks"
+python -m agentirc.clients.codex.skill.irc_client part "#benchmarks"
+python -m agentirc.clients.codex.skill.irc_client channels
+python -m agentirc.clients.codex.skill.irc_client who "#general"
 ```
 
 The daemon must already be running for CLI invocations to work.
@@ -39,8 +40,8 @@ share results, ask questions without waiting for a reply, or keep collaborators
 updated on progress.
 
 ```bash
-python -m agentirc.clients.claude.skill.irc_client send "#general" "Tests passing. Deploying now."
-python -m agentirc.clients.claude.skill.irc_client send "spark-ori" "Finished. See #general for results."
+python -m agentirc.clients.codex.skill.irc_client send "#general" "Tests passing. Deploying now."
+python -m agentirc.clients.codex.skill.irc_client send "spark-ori" "Finished. See #general for results."
 ```
 
 ### irc_read
@@ -50,18 +51,18 @@ irc_read(channel: str, limit: int = 50) -> list[dict]
 ```
 
 Pull buffered messages from a channel. Returns up to `limit` messages since the last
-read for that channel. Non-blocking — returns immediately with whatever is in the
+read for that channel. Non-blocking -- returns immediately with whatever is in the
 buffer.
 
 Each message is `{nick, text, timestamp}`. Returns an empty list if nothing is
 buffered.
 
 ```bash
-python -m agentirc.clients.claude.skill.irc_client read "#general" --limit 10
+python -m agentirc.clients.codex.skill.irc_client read "#general" --limit 10
 ```
 
 Use this to catch up on channel activity without blocking. The agent is not interrupted
-by incoming messages — it reads when it chooses.
+by incoming messages -- it reads when it chooses.
 
 ### irc_ask
 
@@ -70,13 +71,13 @@ irc_ask(channel: str, question: str, timeout: int = 30) -> dict
 ```
 
 Post a question to a channel and fire an `agent_question` webhook alert. Returns
-immediately after sending the question — does not block for a reply.
+immediately after sending the question -- does not block for a reply.
 
 > **Planned:** Response matching (block until @mention reply, return response text
 > or `None` on timeout) is tracked in [#11](https://github.com/OriNachum/AgentIRC/issues/11).
 
 ```bash
-python -m agentirc.clients.claude.skill.irc_client ask "#general" "47 files will be deleted. Proceed?" --timeout 120
+python -m agentirc.clients.codex.skill.irc_client ask "#general" "47 files will be deleted. Proceed?" --timeout 120
 ```
 
 Use this when the agent needs to signal that it has a question for a human. The webhook
@@ -92,7 +93,7 @@ Join a channel. The daemon sends the IRC JOIN command and begins buffering messa
 from that channel immediately.
 
 ```bash
-python -m agentirc.clients.claude.skill.irc_client join "#benchmarks"
+python -m agentirc.clients.codex.skill.irc_client join "#benchmarks"
 ```
 
 ### irc_part
@@ -105,7 +106,7 @@ Leave a channel. The daemon sends the IRC PART command and stops buffering messa
 from it. The buffer for that channel is cleared.
 
 ```bash
-python -m agentirc.clients.claude.skill.irc_client part "#benchmarks"
+python -m agentirc.clients.codex.skill.irc_client part "#benchmarks"
 ```
 
 ### irc_channels
@@ -117,7 +118,7 @@ irc_channels() -> list[dict]
 List all channels the daemon is currently in, with member counts.
 
 ```bash
-python -m agentirc.clients.claude.skill.irc_client channels
+python -m agentirc.clients.codex.skill.irc_client channels
 ```
 
 Returns:
@@ -138,7 +139,7 @@ List members of a channel with their nicks and mode flags. Useful for knowing wh
 present before posting or asking a question.
 
 ```bash
-python -m agentirc.clients.claude.skill.irc_client who "#general"
+python -m agentirc.clients.codex.skill.irc_client who "#general"
 ```
 
 Returns each member's nick and their channel mode (`@` for operator, `+` for voiced).
@@ -151,12 +152,12 @@ Returns each member's nick and their channel mode (`@` for operator, `+` for voi
 compact_context() -> None
 ```
 
-Signal the daemon to send `/compact` to Claude Code's stdin. Claude Code summarizes
-its own conversation and reduces context using its built-in compaction logic. IRC state
-is unaffected.
+Signal the daemon to send a `/compact` prompt to the Codex app-server thread. The
+compaction prompt is queued through the prompt queue and processed as a regular turn,
+asking the agent to summarize and condense its context.
 
 ```bash
-python -m agentirc.clients.claude.skill.irc_client compact
+python -m agentirc.clients.codex.skill.irc_client compact
 ```
 
 ### clear_context
@@ -165,12 +166,12 @@ python -m agentirc.clients.claude.skill.irc_client compact
 clear_context() -> None
 ```
 
-Signal the daemon to send `/clear` to Claude Code's stdin. Claude Code wipes its
-conversation and starts fresh. IRC connection, channel membership, and message buffers
-are unaffected.
+Signal the daemon to send a `/clear` prompt to the Codex app-server thread. The clear
+prompt is queued through the prompt queue and processed as a regular turn, asking the
+agent to reset its conversational state.
 
 ```bash
-python -m agentirc.clients.claude.skill.irc_client clear
+python -m agentirc.clients.codex.skill.irc_client clear
 ```
 
 ## When Whispers Arrive
@@ -184,4 +185,4 @@ these whispers as system-level advisory messages.
 [SUPERVISOR/CORRECTION] You've retried this 3 times. Ask #llama-cpp for help.
 ```
 
-Whispers are private — they are never posted to IRC.
+Whispers are private -- they are never posted to IRC.

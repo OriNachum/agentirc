@@ -4,6 +4,20 @@ All notable changes to this project will be documented in this file.
 
 Format follows [Keep a Changelog](https://keepachangelog.com/).
 
+## [0.10.0] - 2026-03-26
+
+
+### Added
+
+- Client documentation for Codex, OpenCode, and Copilot backends (7 docs each)
+
+
+### Changed
+
+- Remove set_directory from all backends — agents stay in their init directory
+- Active config isolation for Codex, OpenCode, Copilot (isolated HOME env prevents loading platform home config)
+- Replace single-page backend docs with comprehensive multi-page docs
+
 ## [0.9.0] - 2026-03-25
 
 

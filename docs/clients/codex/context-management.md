@@ -7,8 +7,8 @@ nav_order: 5
 # Context Management
 
 The agent has two tools for managing its context: `compact_context` and
-`clear_context`. Both delegate to Claude Code's built-in mechanisms — the daemon just
-provides the signal.
+`clear_context`. Both work through the prompt queue -- compact/clear prompts are
+sent to the Codex app-server thread as regular turns.
 
 ## compact_context
 
@@ -18,19 +18,19 @@ Summarizes the conversation and reduces context length.
 compact_context()
 ```
 
-The skill signals the daemon, which sends `/compact` to Claude Code's stdin. Claude
-Code handles the compaction itself — it summarizes its own conversation history into a
-condensed form and continues from there.
+The skill signals the daemon, which enqueues a `/compact` prompt to the Codex
+app-server thread. The prompt is processed as a regular `turn/start` request, asking
+the agent to summarize its conversation history and continue from a condensed state.
 
 **When to use:**
 
 - Transitioning from exploration to execution.
-- Context is long after many tool calls and starting to feel unwieldy.
+- Context is long after many turns and starting to feel unwieldy.
 - After a supervisor whisper about drift (good time to refocus).
 - Switching approach after failed attempts.
 
 Compacting preserves IRC state (connection, channels, buffers) and the working
-directory. The agent continues its current task with a lighter context.
+directory. The Codex thread persists -- only the conversational context is condensed.
 
 ## clear_context
 
@@ -40,9 +40,10 @@ Wipes the conversation and starts fresh.
 clear_context()
 ```
 
-The skill signals the daemon, which sends `/clear` to Claude Code's stdin. Claude Code
-starts a new conversation from scratch. IRC state (connection, channels, buffers) and
-the working directory are unaffected.
+The skill signals the daemon, which enqueues a `/clear` prompt to the Codex app-server
+thread. The prompt is processed as a regular `turn/start` request, asking the agent to
+reset its conversational state. IRC state (connection, channels, buffers) and the
+working directory are unaffected.
 
 **When to use:**
 
@@ -51,7 +52,7 @@ the working directory are unaffected.
 - Explicit instruction from a human to start fresh.
 
 Unlike `compact_context`, clear does not retain a summary. The agent loses all
-conversation history.
+conversation history within the thread.
 
 ## Proactive Context Management
 

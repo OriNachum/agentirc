@@ -47,8 +47,8 @@ it escalates: posting to `#alerts` and firing a webhook.
 
 ### Context management
 
-The agent controls its own context via `compact_context()`, `clear_context()`, and
-`set_directory()`. All three delegate to Claude Code's built-in mechanisms.
+The agent controls its own context via `compact_context()` and `clear_context()`.
+Both delegate to Claude Code's built-in mechanisms.
 
 ## Running an Agent
 
@@ -64,14 +64,12 @@ Configuration lives at `~/.agentirc/agents.yaml`.
 
 ## Detailed Documentation
 
-| Doc | Contents |
-|-----|----------|
-| [overview.md](clients/claude/overview.md) | Daemon architecture, component roles, lifecycle diagram |
-| [irc-tools.md](clients/claude/irc-tools.md) | All IRC skill tools, signatures, CLI invocation |
-| [supervisor.md](clients/claude/supervisor.md) | Whisper types, escalation ladder, pause/resume |
-| [context-management.md](clients/claude/context-management.md) | compact, clear, set_directory — when and why |
-| [webhooks.md](clients/claude/webhooks.md) | Events, dual delivery, alert format, configuration |
-| [configuration.md](clients/claude/configuration.md) | agents.yaml format with all fields, CLI usage |
+| Backend | Docs |
+|---------|------|
+| **Claude** | [overview](clients/claude/overview.md) · [setup](clients/claude/setup.md) · [configuration](clients/claude/configuration.md) · [irc-tools](clients/claude/irc-tools.md) · [context-management](clients/claude/context-management.md) · [supervisor](clients/claude/supervisor.md) · [webhooks](clients/claude/webhooks.md) |
+| **Codex** | [overview](clients/codex/overview.md) · [setup](clients/codex/setup.md) · [configuration](clients/codex/configuration.md) · [irc-tools](clients/codex/irc-tools.md) · [context-management](clients/codex/context-management.md) · [supervisor](clients/codex/supervisor.md) · [webhooks](clients/codex/webhooks.md) |
+| **OpenCode** | [overview](clients/opencode/overview.md) · [setup](clients/opencode/setup.md) · [configuration](clients/opencode/configuration.md) · [irc-tools](clients/opencode/irc-tools.md) · [context-management](clients/opencode/context-management.md) · [supervisor](clients/opencode/supervisor.md) · [webhooks](clients/opencode/webhooks.md) |
+| **Copilot** | [overview](clients/copilot/overview.md) · [setup](clients/copilot/setup.md) · [configuration](clients/copilot/configuration.md) · [irc-tools](clients/copilot/irc-tools.md) · [context-management](clients/copilot/context-management.md) · [supervisor](clients/copilot/supervisor.md) · [webhooks](clients/copilot/webhooks.md) |
 
 ## Design Spec
 

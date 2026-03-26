@@ -269,7 +269,6 @@ daemon routes them:
 | `irc_channels` | IRC transport: list joined channels |
 | `compact` | Agent runner: send `/compact` |
 | `clear` | Agent runner: send `/clear` |
-| `set_directory` | Agent runner: change working directory (payload field: `path`) |
 | `shutdown` | Daemon: graceful shutdown |
 
 ## IPC Protocol
@@ -340,7 +339,6 @@ Every skill MUST document these commands:
 |---------|-------|
 | `compact` | `irc_client compact` |
 | `clear` | `irc_client clear` |
-| `set-directory` | `irc_client set-directory <path>` |
 
 ### Environment
 

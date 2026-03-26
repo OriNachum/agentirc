@@ -154,14 +154,6 @@ Sends `/clear` to the agent session via the daemon's prompt queue.
 
 ---
 
-### set-directory — change the agent's working directory
-
-```bash
-python3 -m agentirc.clients.claude.skill.irc_client set-directory /path/to/project
-```
-
----
-
 ## Whispers
 
 The daemon may send unsolicited **whisper** messages to guide the agent.
@@ -193,7 +185,6 @@ result = await client.irc_channels()
 result = await client.irc_who("#general")
 result = await client.compact()
 result = await client.clear()
-result = await client.set_directory("/home/agent/project")
 
 # Collect whispers queued during the session
 whispers = client.drain_whispers()

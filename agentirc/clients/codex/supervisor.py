@@ -4,6 +4,9 @@ from __future__ import annotations
 
 import asyncio
 import logging
+import os
+import shutil
+import tempfile
 from dataclasses import dataclass
 from typing import Any, Awaitable, Callable
 
@@ -85,6 +88,13 @@ class CodexSupervisor:
         transcript = self._format_transcript()
         prompt = SUPERVISOR_PROMPT.format(transcript=transcript)
 
+        # Isolate from host config (~/.codex/, XDG, etc.)
+        isolated_home = tempfile.mkdtemp(prefix="agentirc-codex-sv-")
+        isolated_env = dict(os.environ)
+        isolated_env["HOME"] = isolated_home
+        isolated_env.pop("CODEX_HOME", None)
+        isolated_env.pop("XDG_CONFIG_HOME", None)
+
         proc = None
         try:
             proc = await asyncio.create_subprocess_exec(
@@ -92,6 +102,7 @@ class CodexSupervisor:
                 stdin=asyncio.subprocess.PIPE,
                 stdout=asyncio.subprocess.PIPE,
                 stderr=asyncio.subprocess.DEVNULL,
+                env=isolated_env,
             )
             stdout, _ = await asyncio.wait_for(
                 proc.communicate(prompt.encode()),
@@ -116,6 +127,8 @@ class CodexSupervisor:
                     pass
                 await proc.wait()
             return
+        finally:
+            shutil.rmtree(isolated_home, ignore_errors=True)
 
         if verdict.action == "ESCALATION":
             self._escalation_count += 1

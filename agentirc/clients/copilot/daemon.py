@@ -334,9 +334,6 @@ class CopilotDaemon:
             elif msg_type == "irc_ask":
                 return await self._ipc_irc_ask(req_id, msg)
 
-            elif msg_type == "set_directory":
-                return await self._ipc_set_directory(req_id, msg)
-
             elif msg_type == "compact":
                 return await self._ipc_compact(req_id)
 
@@ -429,26 +426,6 @@ class CopilotDaemon:
             ))
         # Response matching is TODO
         return make_response(req_id, ok=True)
-
-    async def _ipc_set_directory(self, req_id: str, msg: dict) -> dict:
-        path = msg.get("path", "")
-        if not path:
-            return make_response(req_id, ok=False, error="Missing 'path'")
-        new_cwd = os.path.abspath(path)
-        if not os.path.isdir(new_cwd):
-            return make_response(req_id, ok=False, error=f"Not a directory: {new_cwd}")
-        # Update the daemon's working directory
-        self.agent.directory = new_cwd
-        # Check for .github/copilot-instructions.md (Copilot's project instructions)
-        copilot_instructions = os.path.join(new_cwd, ".github", "copilot-instructions.md")
-        instructions_content = None
-        if os.path.isfile(copilot_instructions):
-            with open(copilot_instructions) as f:
-                instructions_content = f.read()
-        return make_response(req_id, ok=True, data={
-            "directory": new_cwd,
-            "copilot_instructions": instructions_content,
-        })
 
     async def _ipc_compact(self, req_id: str) -> dict:
         if self._agent_runner is None or not self._agent_runner.is_running():

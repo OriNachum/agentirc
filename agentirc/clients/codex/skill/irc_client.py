@@ -173,10 +173,6 @@ class SkillClient:
         """Send /clear to the Codex agent runner."""
         return await self._request("clear")
 
-    async def set_directory(self, directory: str) -> dict[str, Any]:
-        """Change the working directory for the agent runner."""
-        return await self._request("set_directory", path=directory)
-
 
 # ---------------------------------------------------------------------------
 # CLI
@@ -197,7 +193,7 @@ async def _main(args: list[str]) -> None:
     if not args:
         print(
             "Usage: irc_client.py <subcommand> [args...]\n"
-            "Subcommands: send, read, ask, join, part, channels, who, compact, clear, set-directory",
+            "Subcommands: send, read, ask, join, part, channels, who, compact, clear",
             file=sys.stderr,
         )
         sys.exit(1)
@@ -254,10 +250,6 @@ async def _main(args: list[str]) -> None:
 
         elif subcommand == "clear":
             result = await client.clear()
-
-        elif subcommand == "set-directory":
-            directory = args[1]
-            result = await client.set_directory(directory)
 
         else:
             print(f"ERROR: Unknown subcommand: {subcommand!r}", file=sys.stderr)

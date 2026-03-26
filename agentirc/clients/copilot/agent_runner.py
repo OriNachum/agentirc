@@ -4,6 +4,9 @@ from __future__ import annotations
 
 import asyncio
 import logging
+import os
+import shutil
+import tempfile
 from typing import Any, Awaitable, Callable
 
 logger = logging.getLogger(__name__)
@@ -28,6 +31,7 @@ class CopilotAgentRunner:
         self.on_exit = on_exit
         self.on_message = on_message
 
+        self._isolated_home: str | None = None
         self._client: Any = None
         self._session: Any = None
         self._session_id: str | None = None
@@ -50,41 +54,50 @@ class CopilotAgentRunner:
         # Lazy import — github-copilot-sdk is only needed at runtime
         from copilot import CopilotClient, PermissionHandler, SubprocessConfig
 
-        # Create and start the CopilotClient (spawns copilot CLI process)
-        subprocess_config = SubprocessConfig(cwd=self.directory)
-        self._client = CopilotClient(config=subprocess_config)
-        await self._client.start()
+        # Isolate from host config
+        self._isolated_home = tempfile.mkdtemp(prefix="agentirc-copilot-")
+        isolated_env = {**os.environ, "HOME": self._isolated_home}
+        isolated_env.pop("XDG_CONFIG_HOME", None)
 
-        # Create a session with model and permissions.
-        # Wrap in try/except so a partial start doesn't leak the CLI process.
         try:
-            session_kwargs: dict[str, Any] = {
-                "on_permission_request": PermissionHandler.approve_all,
-                "model": self.model,
-            }
-            if self.system_prompt:
-                session_kwargs["system_message"] = {"content": self.system_prompt}
-            if self.skill_directories:
-                session_kwargs["skill_directories"] = self.skill_directories
+            # Create and start the CopilotClient (spawns copilot CLI process)
+            subprocess_config = SubprocessConfig(cwd=self.directory, env=isolated_env)
+            self._client = CopilotClient(config=subprocess_config)
+            await self._client.start()
 
-            self._session = await self._client.create_session(**session_kwargs)
+            # Create a session with model and permissions.
+            try:
+                session_kwargs: dict[str, Any] = {
+                    "on_permission_request": PermissionHandler.approve_all,
+                    "model": self.model,
+                }
+                if self.system_prompt:
+                    session_kwargs["system_message"] = {"content": self.system_prompt}
+                if self.skill_directories:
+                    session_kwargs["skill_directories"] = self.skill_directories
+
+                self._session = await self._client.create_session(**session_kwargs)
+            except Exception:
+                await self._client.stop()
+                self._client = None
+                raise
+            self._session_id = getattr(self._session, "id", None)
+            self._running = True
+
+            logger.info(
+                "CopilotAgentRunner started (model=%s, session=%s)",
+                self.model, self._session_id,
+            )
+
+            # Start the prompt processing loop
+            self._task = asyncio.create_task(self._prompt_loop())
+
+            if initial_prompt:
+                await self.send_prompt(initial_prompt)
         except Exception:
-            await self._client.stop()
-            self._client = None
+            shutil.rmtree(self._isolated_home, ignore_errors=True)
+            self._isolated_home = None
             raise
-        self._session_id = getattr(self._session, "id", None)
-        self._running = True
-
-        logger.info(
-            "CopilotAgentRunner started (model=%s, session=%s)",
-            self.model, self._session_id,
-        )
-
-        # Start the prompt processing loop
-        self._task = asyncio.create_task(self._prompt_loop())
-
-        if initial_prompt:
-            await self.send_prompt(initial_prompt)
 
     async def stop(self) -> None:
         """Stop the Copilot session and client."""
@@ -112,6 +125,10 @@ class CopilotAgentRunner:
             except Exception:
                 logger.debug("Client stop error (ignoring)", exc_info=True)
             self._client = None
+
+        if self._isolated_home:
+            shutil.rmtree(self._isolated_home, ignore_errors=True)
+            self._isolated_home = None
 
     async def send_prompt(self, text: str) -> None:
         """Queue a prompt for the agent."""

@@ -7,8 +7,8 @@ nav_order: 5
 # Context Management
 
 The agent has two tools for managing its context: `compact_context` and
-`clear_context`. Both delegate to Claude Code's built-in mechanisms — the daemon just
-provides the signal.
+`clear_context`. Both work through the ACP protocol -- the daemon sends the
+command as a `session/prompt` to the OpenCode ACP session.
 
 ## compact_context
 
@@ -18,9 +18,9 @@ Summarizes the conversation and reduces context length.
 compact_context()
 ```
 
-The skill signals the daemon, which sends `/compact` to Claude Code's stdin. Claude
-Code handles the compaction itself — it summarizes its own conversation history into a
-condensed form and continues from there.
+The skill signals the daemon, which sends `/compact` as a `session/prompt` to the
+OpenCode ACP session. OpenCode handles the compaction itself -- it summarizes its
+own conversation history into a condensed form and continues from there.
 
 **When to use:**
 
@@ -40,9 +40,9 @@ Wipes the conversation and starts fresh.
 clear_context()
 ```
 
-The skill signals the daemon, which sends `/clear` to Claude Code's stdin. Claude Code
-starts a new conversation from scratch. IRC state (connection, channels, buffers) and
-the working directory are unaffected.
+The skill signals the daemon, which sends `/clear` as a `session/prompt` to the
+OpenCode ACP session. OpenCode starts a new conversation from scratch. IRC state
+(connection, channels, buffers) and the working directory are unaffected.
 
 **When to use:**
 
@@ -52,6 +52,14 @@ the working directory are unaffected.
 
 Unlike `compact_context`, clear does not retain a summary. The agent loses all
 conversation history.
+
+## How It Works Under the Hood
+
+Unlike backends that use stdin commands, the OpenCode backend sends compact and
+clear commands through the same ACP `session/prompt` mechanism used for regular
+prompts. The daemon's IPC handler receives a `compact` or `clear` request from the
+skill client and forwards it to the agent runner, which sends it as a prompt to the
+active ACP session.
 
 ## Proactive Context Management
 

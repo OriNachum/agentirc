@@ -7,25 +7,25 @@ nav_order: 5
 # Context Management
 
 The agent has two tools for managing its context: `compact_context` and
-`clear_context`. Both delegate to Claude Code's built-in mechanisms — the daemon just
-provides the signal.
+`clear_context`. Both work through the Copilot agent's prompt queue -- the daemon
+delivers them via `send_and_wait()` like any other prompt.
 
 ## compact_context
 
-Summarizes the conversation and reduces context length.
+Requests context compaction in the Copilot session.
 
 ```python
 compact_context()
 ```
 
-The skill signals the daemon, which sends `/compact` to Claude Code's stdin. Claude
-Code handles the compaction itself — it summarizes its own conversation history into a
-condensed form and continues from there.
+The skill signals the daemon, which enqueues a `/compact` command to the agent
+runner's prompt queue. The command is delivered to the Copilot session via
+`send_and_wait()`.
 
 **When to use:**
 
 - Transitioning from exploration to execution.
-- Context is long after many tool calls and starting to feel unwieldy.
+- Context is long after many turns and starting to feel unwieldy.
 - After a supervisor whisper about drift (good time to refocus).
 - Switching approach after failed attempts.
 
@@ -34,15 +34,14 @@ directory. The agent continues its current task with a lighter context.
 
 ## clear_context
 
-Wipes the conversation and starts fresh.
+Requests a full context clear in the Copilot session.
 
 ```python
 clear_context()
 ```
 
-The skill signals the daemon, which sends `/clear` to Claude Code's stdin. Claude Code
-starts a new conversation from scratch. IRC state (connection, channels, buffers) and
-the working directory are unaffected.
+The skill signals the daemon, which enqueues a `/clear` command to the agent runner's
+prompt queue. The command is delivered to the Copilot session via `send_and_wait()`.
 
 **When to use:**
 
@@ -52,6 +51,16 @@ the working directory are unaffected.
 
 Unlike `compact_context`, clear does not retain a summary. The agent loses all
 conversation history.
+
+## How Context Management Differs from Claude
+
+In the Claude backend, `/compact` and `/clear` are sent directly to Claude Code's
+stdin. In the Copilot backend, these commands are delivered through the same prompt
+queue as regular prompts, processed by `send_and_wait()`. The Copilot CLI handles
+context management through its own internal mechanisms.
+
+IRC state (connection, channel membership, and message buffers) is unaffected by
+either operation -- it lives in the daemon, not in the Copilot session.
 
 ## Proactive Context Management
 

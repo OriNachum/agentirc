@@ -299,9 +299,6 @@ class AgentDaemon:
             elif msg_type == "irc_ask":
                 return await self._ipc_irc_ask(req_id, msg)
 
-            elif msg_type == "set_directory":
-                return await self._ipc_set_directory(req_id, msg)
-
             elif msg_type == "compact":
                 return await self._ipc_compact(req_id)
 
@@ -394,20 +391,6 @@ class AgentDaemon:
             ))
         # Response matching is TODO
         return make_response(req_id, ok=True)
-
-    async def _ipc_set_directory(self, req_id: str, msg: dict) -> dict:
-        path = msg.get("path", "")
-        if not path:
-            return make_response(req_id, ok=False, error="Missing 'path'")
-        claude_md = os.path.join(path, "CLAUDE.md")
-        claude_md_content = None
-        if os.path.isfile(claude_md):
-            with open(claude_md) as f:
-                claude_md_content = f.read()
-        return make_response(req_id, ok=True, data={
-            "directory": path,
-            "claude_md": claude_md_content,
-        })
 
     async def _ipc_compact(self, req_id: str) -> dict:
         if self._agent_runner is None or not self._agent_runner.is_running():
