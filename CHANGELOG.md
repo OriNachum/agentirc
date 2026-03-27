@@ -4,6 +4,13 @@ All notable changes to this project will be documented in this file.
 
 Format follows [Keep a Changelog](https://keepachangelog.com/).
 
+## [0.10.4] - 2026-03-27
+
+
+### Changed
+
+- Renamed DaRe to DaRIA (Data Refinery Intelligent Agent) in lifecycle guide
+
 ## [0.10.3] - 2026-03-26
 
 ### Changed
