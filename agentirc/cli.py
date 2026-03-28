@@ -693,8 +693,16 @@ async def _ipc_request(socket_path: str, msg_type: str, **kwargs) -> dict | None
         req = make_request(msg_type, **kwargs)
         writer.write(encode_message(req))
         await writer.drain()
-        data = await asyncio.wait_for(reader.readline(), timeout=3.0)
-        return decode_message(data)
+        # Read lines until we get a response (skip whispers)
+        deadline = asyncio.get_event_loop().time() + 3.0
+        while True:
+            remaining = deadline - asyncio.get_event_loop().time()
+            if remaining <= 0:
+                return None
+            data = await asyncio.wait_for(reader.readline(), timeout=remaining)
+            msg = decode_message(data)
+            if msg and msg.get("type") == "response":
+                return msg
     except (asyncio.TimeoutError, ConnectionError, BrokenPipeError, OSError):
         return None
     finally:
@@ -823,8 +831,12 @@ def _ipc_to_agents(args: argparse.Namespace, msg_type: str, action_verb: str) ->
     """Send an IPC message (pause/resume) to one or all agents."""
     config = load_config_or_default(args.config)
 
+    if args.nick and args.all:
+        print(f"Cannot specify both nick and --all", file=sys.stderr)
+        sys.exit(1)
+
     if not args.nick and not args.all:
-        print(f"Usage: agentirc {action_verb} <nick> or agentirc {action_verb} --all", file=sys.stderr)
+        print(f"Usage: agentirc {action_verb} <nick> or --all", file=sys.stderr)
         sys.exit(1)
 
     targets = config.agents if args.all else []
@@ -841,17 +853,17 @@ def _ipc_to_agents(args: argparse.Namespace, msg_type: str, action_verb: str) ->
         socket_path = _agent_socket_path(agent.nick)
         resp = asyncio.run(_ipc_request(socket_path, msg_type))
         if resp and resp.get("ok"):
-            print(f"{agent.nick}: {action_verb}d")
+            print(f"{agent.nick}: {action_verb}")
         else:
             print(f"{agent.nick}: failed (not running?)", file=sys.stderr)
 
 
 def _cmd_sleep(args: argparse.Namespace) -> None:
-    _ipc_to_agents(args, "pause", "sleep")
+    _ipc_to_agents(args, "pause", "paused")
 
 
 def _cmd_wake(args: argparse.Namespace) -> None:
-    _ipc_to_agents(args, "resume", "wake")
+    _ipc_to_agents(args, "resume", "resumed")
 
 
 def _cmd_send(args: argparse.Namespace) -> None:

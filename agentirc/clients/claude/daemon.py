@@ -128,6 +128,10 @@ class AgentDaemon:
         """Cleanly shut down all components."""
         if hasattr(self, "_sleep_task") and self._sleep_task:
             self._sleep_task.cancel()
+            try:
+                await self._sleep_task
+            except asyncio.CancelledError:
+                pass
             self._sleep_task = None
 
         if self._agent_runner is not None:
@@ -148,18 +152,35 @@ class AgentDaemon:
 
         logger.info("AgentDaemon stopped for %s", self.agent.nick)
 
+    def _parse_sleep_schedule(self) -> tuple[int, int] | None:
+        """Parse sleep_start/sleep_end into minutes. Returns None if invalid."""
+        try:
+            sh, sm = (int(x) for x in self.config.sleep_start.split(":"))
+            wh, wm = (int(x) for x in self.config.sleep_end.split(":"))
+            if not (0 <= sh <= 23 and 0 <= sm <= 59 and 0 <= wh <= 23 and 0 <= wm <= 59):
+                raise ValueError("hours/minutes out of range")
+            return (sh * 60 + sm, wh * 60 + wm)
+        except (ValueError, AttributeError):
+            logger.warning(
+                "Invalid sleep schedule '%s'-'%s' for %s — scheduler disabled",
+                getattr(self.config, "sleep_start", None),
+                getattr(self.config, "sleep_end", None),
+                self.agent.nick,
+            )
+            return None
+
     async def _sleep_scheduler(self) -> None:
         """Background task that auto-pauses/resumes based on sleep schedule."""
+        schedule = self._parse_sleep_schedule()
+        if schedule is None:
+            return
+        sleep_minutes, wake_minutes = schedule
+
         while True:
             try:
                 await asyncio.sleep(60)  # Check every minute
                 now = datetime.datetime.now()
                 current_minutes = now.hour * 60 + now.minute
-
-                sleep_h, sleep_m = (int(x) for x in self.config.sleep_start.split(":"))
-                wake_h, wake_m = (int(x) for x in self.config.sleep_end.split(":"))
-                sleep_minutes = sleep_h * 60 + sleep_m
-                wake_minutes = wake_h * 60 + wake_m
 
                 if sleep_minutes > wake_minutes:
                     # Overnight: e.g., 23:00-08:00
@@ -174,13 +195,6 @@ class AgentDaemon:
                 elif not should_sleep and self._paused:
                     self._paused = False
                     logger.info("Sleep schedule: resuming %s", self.agent.nick)
-                    # Catch up on missed messages
-                    if self._transport:
-                        for channel in self.agent.channels:
-                            try:
-                                await self._transport.send_raw(f"HISTORY RECENT {channel} 200")
-                            except Exception:
-                                pass
             except asyncio.CancelledError:
                 return
             except Exception:
@@ -390,13 +404,9 @@ class AgentDaemon:
     async def _ipc_resume(self, req_id: str) -> dict:
         self._paused = False
         logger.info("Agent %s resumed", self.agent.nick)
-        # Catch up on missed messages by reading recent history
-        if self._transport:
-            for channel in self.agent.channels:
-                try:
-                    await self._transport.send_raw(f"HISTORY RECENT {channel} 200")
-                except Exception:
-                    pass
+        # NOTE: Catch-up on missed messages is not yet implemented.
+        # IRCTransport does not process HISTORY responses into the buffer.
+        # The agent resumes and will see new messages going forward.
         return make_response(req_id, ok=True)
 
     def _ipc_status(self, req_id: str) -> dict:

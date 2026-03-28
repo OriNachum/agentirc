@@ -86,6 +86,8 @@ def load_config(path: str | Path) -> DaemonConfig:
         supervisor=supervisor,
         webhooks=webhooks,
         buffer_size=raw.get("buffer_size", 500),
+        sleep_start=raw.get("sleep_start", "23:00"),
+        sleep_end=raw.get("sleep_end", "08:00"),
         agents=agents,
     )
 

@@ -193,6 +193,10 @@ class IRCObserver:
 
         Uses the same ephemeral connection pattern as the read commands.
         """
+        # Sanitize CR/LF to prevent IRC command injection
+        target = target.replace("\r", "").replace("\n", "")
+        text = text.replace("\r", "").replace("\n", " ")
+
         reader, writer, nick = await self._connect_and_register()
         try:
             # If sending to a channel, join it first so the server accepts the PRIVMSG
