@@ -433,6 +433,18 @@ def _cmd_start(args: argparse.Namespace) -> None:
         print("No agents configured", file=sys.stderr)
         sys.exit(1)
 
+    # Check that the IRC server is running before starting agent(s)
+    server_name = config.server.name
+    server_pid = read_pid(f"server-{server_name}")
+    if not server_pid or not is_process_alive(server_pid):
+        print(
+            f"Error: IRC server '{server_name}' is not running on "
+            f"{config.server.host}:{config.server.port}.\n"
+            f"Start it with: agentirc server start --name {server_name}",
+            file=sys.stderr,
+        )
+        sys.exit(1)
+
     if len(agents) == 1:
         # Run in foreground (single agent)
         agent = agents[0]

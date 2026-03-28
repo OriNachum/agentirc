@@ -4,6 +4,15 @@ All notable changes to this project will be documented in this file.
 
 Format follows [Keep a Changelog](https://keepachangelog.com/).
 
+## [0.10.7] - 2026-03-28
+
+
+### Fixed
+
+- Fix crash with cryptic asyncio Event loop is closed errors when starting agent without IRC server running
+- Add server-running pre-check in CLI before starting agent daemon
+- Wrap IRC transport connect in try/except for clear error on connection failure
+
 ## [0.10.6] - 2026-03-28
 
 

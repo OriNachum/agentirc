@@ -36,7 +36,13 @@ class IRCTransport:
         await self._do_connect()
 
     async def _do_connect(self) -> None:
-        self._reader, self._writer = await asyncio.open_connection(self.host, self.port)
+        try:
+            self._reader, self._writer = await asyncio.open_connection(self.host, self.port)
+        except (ConnectionRefusedError, OSError) as exc:
+            raise RuntimeError(
+                f"Cannot connect to IRC server at {self.host}:{self.port} "
+                f"- is the server running?"
+            ) from exc
         await self._send_raw(f"NICK {self.nick}")
         await self._send_raw(f"USER {self.user} 0 * :{self.user}")
         self._read_task = asyncio.create_task(self._read_loop())
