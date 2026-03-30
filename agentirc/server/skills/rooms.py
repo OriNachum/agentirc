@@ -82,6 +82,10 @@ class RoomsSkill(Skill):
             if key not in known_keys:
                 channel.extra_meta[key] = value
 
+        # Invite existing agents whose tags match the new room's tags
+        if channel.tags:
+            await self._on_room_tags_changed(channel, set(), set(channel.tags))
+
         # Auto-join creator as operator
         channel.add(client)
         client.channels.add(channel)
@@ -100,6 +104,11 @@ class RoomsSkill(Skill):
             prefix=self.server.config.name,
             command="ROOMCREATED",
             params=[channel_name, channel.room_id, f"Room created: {channel.purpose or channel_name}"],
+        ))
+        self._persist_room(channel)
+        await self.server.emit_event(Event(
+            type=EventType.ROOMMETA, channel=channel_name, nick=client.nick,
+            data={"room_id": channel.room_id, "meta": self._serialize_meta(channel)},
         ))
 
     async def _handle_roommeta(self, client: Client, msg: Message) -> None:
@@ -229,6 +238,11 @@ class RoomsSkill(Skill):
                 command="ROOMETASET",
                 params=[channel_name, key, value, "Updated"],
             ))
+            self._persist_room(channel)
+            await self.server.emit_event(Event(
+                type=EventType.ROOMMETA, channel=channel.name, nick=client.nick,
+                data={"room_id": channel.room_id, "meta": self._serialize_meta(channel)},
+            ))
 
     async def _on_room_tags_changed(self, channel, old_tags: set, new_tags: set) -> None:
         """Fire tag-based notifications when a room's tags change.
@@ -324,6 +338,10 @@ class RoomsSkill(Skill):
                 command="TAGSSET",
                 params=[nick, tags_value, "Tags updated"],
             ))
+            await self.server.emit_event(Event(
+                type=EventType.TAGS, channel=None, nick=target.nick,
+                data={"tags": target.tags},
+            ))
 
     async def _on_agent_tags_changed(self, client: Client, old_tags: set, new_tags: set) -> None:
         """Fire tag-based notifications when an agent's tags change.
@@ -369,10 +387,280 @@ class RoomsSkill(Skill):
         ))
 
     async def _handle_roominvite(self, client: Client, msg: Message) -> None:
-        pass  # Task 7
+        from agentirc.server.remote_client import RemoteClient
+
+        if len(msg.params) < 2:
+            await client.send_numeric(
+                replies.ERR_NEEDMOREPARAMS, "ROOMINVITE", "Not enough parameters"
+            )
+            return
+
+        channel_name = msg.params[0]
+        target_nick = msg.params[1]
+
+        channel = self.server.channels.get(channel_name)
+        if not channel:
+            await client.send_numeric(
+                replies.ERR_NOSUCHCHANNEL, channel_name, "No such channel"
+            )
+            return
+
+        target = self.server.clients.get(target_nick)
+        if not target:
+            await client.send_numeric(
+                replies.ERR_NOSUCHNICK, target_nick, "No such nick"
+            )
+            return
+
+        # Don't send to RemoteClients
+        if isinstance(target, RemoteClient):
+            return
+
+        # Build context payload
+        parts = []
+        if channel.purpose:
+            parts.append(f"purpose={channel.purpose}")
+        if channel.tags:
+            parts.append(f"tags={','.join(channel.tags)}")
+        if channel.instructions:
+            parts.append(f"instructions={channel.instructions}")
+        context = ";".join(parts) if parts else channel_name
+
+        await target.send(Message(
+            prefix=client.prefix,
+            command="ROOMINVITE",
+            params=[target_nick, channel_name, context],
+        ))
+
+        # Confirmation notice to inviter
+        await client.send(Message(
+            prefix=self.server.config.name,
+            command="NOTICE",
+            params=[client.nick, f"Invited {target_nick} to {channel_name}"],
+        ))
 
     async def _handle_roomkick(self, client: Client, msg: Message) -> None:
-        pass  # Task 8
+        if len(msg.params) < 2:
+            await client.send_numeric(
+                replies.ERR_NEEDMOREPARAMS, "ROOMKICK", "Not enough parameters"
+            )
+            return
+
+        channel_name = msg.params[0]
+        target_nick = msg.params[1]
+
+        channel = self.server.channels.get(channel_name)
+        if not channel:
+            await client.send_numeric(
+                replies.ERR_NOSUCHCHANNEL, channel_name, "No such channel"
+            )
+            return
+
+        if not channel.is_managed:
+            await client.send(Message(
+                prefix=self.server.config.name,
+                command="NOTICE",
+                params=[client.nick, f"{channel_name} is not a managed room"],
+            ))
+            return
+
+        # Owner-only permission check
+        if channel.owner != client.nick:
+            await client.send(Message(
+                prefix=self.server.config.name,
+                command="NOTICE",
+                params=[client.nick, f"You do not have permission to kick members from {channel_name}"],
+            ))
+            return
+
+        target = self.server.clients.get(target_nick)
+        if not target or target not in channel.members:
+            await client.send_numeric(
+                replies.ERR_USERNOTINCHANNEL, target_nick, channel_name, "They aren't on that channel"
+            )
+            return
+
+        # Force-part: notify all current members then remove target
+        part_msg = Message(
+            prefix=target.prefix,
+            command="PART",
+            params=[channel_name, f"Kicked by {client.nick}"],
+        )
+        for member in list(channel.members):
+            await member.send(part_msg)
+
+        channel.remove(target)
+        target.channels.discard(channel)
+
+        if not channel.members:
+            del self.server.channels[channel_name]
+
+    def _next_archive_name(self, base_name: str) -> str:
+        """Return the next available archive name for a channel.
+
+        First try ``{base_name}-archived``.  If taken, try
+        ``{base_name}-archived#2``, ``#3``, etc.
+        """
+        candidate = f"{base_name}-archived"
+        if candidate not in self.server.channels:
+            return candidate
+        n = 2
+        while True:
+            candidate = f"{base_name}-archived#{n}"
+            if candidate not in self.server.channels:
+                return candidate
+            n += 1
 
     async def _handle_roomarchive(self, client: Client, msg: Message) -> None:
-        pass  # Task 9
+        if not msg.params:
+            await client.send_numeric(
+                replies.ERR_NEEDMOREPARAMS, "ROOMARCHIVE", "Not enough parameters"
+            )
+            return
+
+        channel_name = msg.params[0]
+        channel = self.server.channels.get(channel_name)
+
+        if not channel:
+            await client.send_numeric(
+                replies.ERR_NOSUCHCHANNEL, channel_name, "No such channel"
+            )
+            return
+
+        if not channel.is_managed:
+            await client.send(Message(
+                prefix=self.server.config.name,
+                command="NOTICE",
+                params=[client.nick, f"{channel_name} is not a managed room"],
+            ))
+            return
+
+        # Owner or channel operator only
+        is_owner = channel.owner == client.nick
+        is_operator = channel.is_operator(client)
+        if not is_owner and not is_operator:
+            await client.send(Message(
+                prefix=self.server.config.name,
+                command="NOTICE",
+                params=[client.nick, f"You do not have permission to archive {channel_name}"],
+            ))
+            return
+
+        # Determine archive name
+        archive_name = self._next_archive_name(channel_name)
+
+        # Notify all members before parting them
+        notice_msg = Message(
+            prefix=self.server.config.name,
+            command="NOTICE",
+            params=[
+                channel_name,
+                f"{channel_name} is being archived as {archive_name}",
+            ],
+        )
+        for member in list(channel.members):
+            await member.send(notice_msg)
+
+        # Part all members
+        part_msg = Message(
+            prefix=self.server.config.name,
+            command="PART",
+            params=[channel_name, f"Room archived as {archive_name}"],
+        )
+        for member in list(channel.members):
+            await member.send(part_msg)
+            member.channels.discard(channel)
+
+        channel.members.clear()
+        channel.operators.clear()
+        channel.voiced.clear()
+
+        # Rename: remove old entry, update channel object, add under new name
+        del self.server.channels[channel_name]
+        channel.name = archive_name
+        channel.archived = True
+        self.server.channels[archive_name] = channel
+
+        # Confirm to requester
+        await client.send(Message(
+            prefix=self.server.config.name,
+            command="ROOMARCHIVED",
+            params=[channel_name, archive_name, f"Room archived as {archive_name}"],
+        ))
+        self._persist_room(channel)
+        await self.server.emit_event(Event(
+            type=EventType.ROOMARCHIVE, channel=channel_name, nick=client.nick,
+            data={"room_id": channel.room_id, "archive_name": archive_name},
+        ))
+
+    def _serialize_meta(self, channel) -> str:
+        import json
+        return json.dumps({
+            "room_id": channel.room_id, "name": channel.name,
+            "creator": channel.creator, "owner": channel.owner,
+            "purpose": channel.purpose, "instructions": channel.instructions,
+            "tags": channel.tags, "persistent": channel.persistent,
+            "agent_limit": channel.agent_limit, "extra_meta": channel.extra_meta,
+            "created_at": channel.created_at,
+        })
+
+    def _persist_room(self, channel) -> None:
+        """Save room to disk if data_dir is configured."""
+        if not self.server.config.data_dir:
+            return
+        from agentirc.server.room_store import RoomStore
+        store = RoomStore(self.server.config.data_dir)
+        store.save(channel)
+
+    async def on_event(self, event: Event) -> None:
+        """React to PART/QUIT events to notify owners of empty persistent rooms."""
+        if event.type == EventType.PART:
+            await self._check_empty_room_on_part(event)
+        elif event.type == EventType.QUIT:
+            await self._check_empty_rooms_on_quit(event)
+
+    async def _check_empty_room_on_part(self, event: Event) -> None:
+        """If a persistent managed room will be empty after this PART, notify the owner."""
+        channel_name = event.channel
+        if not channel_name:
+            return
+        channel = self.server.channels.get(channel_name)
+        if not channel or not channel.is_managed or not channel.persistent:
+            return
+
+        # The parting member is still in the channel when the event fires.
+        # If they are the only member, the room becomes empty.
+        if len(channel.members) != 1:
+            return
+
+        await self._notify_owner_room_empty(channel)
+
+    async def _check_empty_rooms_on_quit(self, event: Event) -> None:
+        """For each persistent managed room the quitting user was in, check if empty."""
+        channel_names: list[str] = event.data.get("channels", [])
+        quitting_nick = event.nick
+        for channel_name in channel_names:
+            channel = self.server.channels.get(channel_name)
+            if not channel or not channel.is_managed or not channel.persistent:
+                continue
+            # All members except the quitting client
+            remaining = [m for m in channel.members if m.nick != quitting_nick]
+            if remaining:
+                continue
+            await self._notify_owner_room_empty(channel)
+
+    async def _notify_owner_room_empty(self, channel) -> None:
+        """Send a NOTICE to the channel owner suggesting archival."""
+        if not channel.owner:
+            return
+        owner_client = self.server.clients.get(channel.owner)
+        if not owner_client:
+            return
+        await owner_client.send(Message(
+            prefix=self.server.config.name,
+            command="NOTICE",
+            params=[
+                channel.owner,
+                f"{channel.name} is now empty. Consider archiving it with ROOMARCHIVE {channel.name}",
+            ],
+        ))
