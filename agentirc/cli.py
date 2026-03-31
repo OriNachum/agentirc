@@ -432,6 +432,9 @@ def _cmd_init(args: argparse.Namespace) -> None:
             except _json.JSONDecodeError:
                 # Treat as a simple command name (e.g. "cline --acp")
                 acp_cmd = args.acp_command.split()
+        if not isinstance(acp_cmd, list) or not acp_cmd or not all(isinstance(s, str) for s in acp_cmd):
+            print("Error: --acp-command must be a non-empty list of strings", file=sys.stderr)
+            sys.exit(1)
         agent = ACPAgentConfig(
             nick=full_nick,
             agent="acp",
