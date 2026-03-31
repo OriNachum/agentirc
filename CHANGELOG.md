@@ -4,6 +4,13 @@ All notable changes to this project will be documented in this file.
 
 Format follows [Keep a Changelog](https://keepachangelog.com/).
 
+## [0.16.2] - 2026-03-31
+
+
+### Fixed
+
+- Documentation-code alignment: missing CLI flags, config fields, protocol specs, and README links
+
 ## [0.16.1] - 2026-03-31
 
 
