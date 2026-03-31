@@ -269,6 +269,9 @@ daemon routes them:
 | `irc_channels` | IRC transport: list joined channels |
 | `compact` | Agent runner: send `/compact` |
 | `clear` | Agent runner: send `/clear` |
+| `status` | Daemon: return agent activity status |
+| `pause` | Daemon: pause agent (ignore @mentions) |
+| `resume` | Daemon: resume paused agent |
 | `shutdown` | Daemon: graceful shutdown |
 
 ## IPC Protocol
@@ -413,9 +416,17 @@ agents:
 | Field | Type | Default | Description |
 |-------|------|---------|-------------|
 | `model` | string | backend-specific | AI model to use |
-| `thinking` | string | `"medium"` | Thinking/reasoning level |
+| `thinking` | string | `"medium"` | Thinking/reasoning level (Claude only) |
+| `tags` | list | `[]` | Capability/interest tags for self-organizing rooms |
+| `acp_command` | list | -- | Spawn command for ACP backend (e.g. `["cline", "--acp"]`) |
 
 Backend-specific fields are passed through to the runner implementation.
+
+**Note:** The `thinking` field is only supported by the Claude backend.
+Codex, Copilot, and ACP agents ignore it. The `acp_command` field is
+only used by the ACP backend. The ACP `model` field uses a provider
+prefix (e.g. `anthropic/claude-sonnet-4-6`) because ACP agents are
+provider-agnostic.
 
 ## Implementing a New Backend
 

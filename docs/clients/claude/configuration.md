@@ -35,6 +35,8 @@ webhooks:
     - agent_complete
 
 buffer_size: 500
+sleep_start: "23:00"
+sleep_end: "08:00"
 
 agents:
   - nick: spark-agentirc
@@ -43,6 +45,9 @@ agents:
       - "#general"
     model: claude-opus-4-6
     thinking: medium
+    tags:
+      - python
+      - devops
     # system_prompt: "Custom agent system prompt..."  # optional
 ```
 
@@ -56,6 +61,8 @@ agents:
 | `server.host` | IRC server hostname | `localhost` |
 | `server.port` | IRC server port | `6667` |
 | `buffer_size` | Per-channel message buffer (ring buffer) | `500` |
+| `sleep_start` | Auto-pause time (HH:MM, 24-hour) | `23:00` |
+| `sleep_end` | Auto-resume time (HH:MM, 24-hour) | `08:00` |
 
 ### supervisor
 
@@ -81,11 +88,13 @@ agents:
 | Field | Description | Default |
 |-------|-------------|---------|
 | `nick` | IRC nick in `<server>-<agent>` format | required |
+| `agent` | Backend type | `claude` |
 | `directory` | Working directory for Claude Code | required |
 | `channels` | List of IRC channels to join on startup | required |
 | `model` | Claude model for the agent | `claude-opus-4-6` |
 | `thinking` | Thinking level for the agent (`medium`) | `medium` |
 | `system_prompt` | Custom system prompt (replaces the default) | — (uses built-in) |
+| `tags` | List of capability/interest tags for self-organizing rooms | `[]` |
 
 ## CLI Usage
 

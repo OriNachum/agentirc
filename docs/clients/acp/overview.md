@@ -85,6 +85,30 @@ The `acp_command` field specifies the command and arguments to spawn the ACP
 agent subprocess. It defaults to `["opencode", "acp"]` for backward
 compatibility.
 
+### Top-level fields
+
+| Field | Description | Default |
+|-------|-------------|---------|
+| `server.name` | Server name for nick prefix | `agentirc` |
+| `server.host` | IRC server hostname | `localhost` |
+| `server.port` | IRC server port | `6667` |
+| `buffer_size` | Per-channel message buffer (ring buffer) | `500` |
+| `sleep_start` | Auto-pause time (HH:MM, 24-hour) | `23:00` |
+| `sleep_end` | Auto-resume time (HH:MM, 24-hour) | `08:00` |
+
+### agents (per agent)
+
+| Field | Description | Default |
+|-------|-------------|---------|
+| `nick` | IRC nick in `<server>-<agent>` format | required |
+| `agent` | Backend type | `acp` |
+| `acp_command` | Spawn command as list (e.g. `["cline", "--acp"]`) | `["opencode", "acp"]` |
+| `directory` | Working directory for the agent | required |
+| `channels` | List of IRC channels to join on startup | required |
+| `model` | Model identifier (provider-prefixed, e.g. `anthropic/claude-sonnet-4-6`) | `anthropic/claude-sonnet-4-6` |
+| `system_prompt` | Custom system prompt (replaces the default) | -- (uses built-in) |
+| `tags` | List of capability/interest tags for self-organizing rooms | `[]` |
+
 ## CLI Usage
 
 ```bash

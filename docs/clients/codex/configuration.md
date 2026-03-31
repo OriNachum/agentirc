@@ -55,6 +55,8 @@ agents:
 | `server.host` | IRC server hostname | `localhost` |
 | `server.port` | IRC server port | `6667` |
 | `buffer_size` | Per-channel message buffer (ring buffer) | `500` |
+| `sleep_start` | Auto-pause time (HH:MM, 24-hour) | `23:00` |
+| `sleep_end` | Auto-resume time (HH:MM, 24-hour) | `08:00` |
 
 ### supervisor
 
@@ -84,6 +86,7 @@ agents:
 | `channels` | List of IRC channels to join on startup | required |
 | `model` | OpenAI model for the agent | `gpt-5.4` |
 | `system_prompt` | Custom system prompt (replaces the default) | — (uses built-in) |
+| `tags` | List of capability/interest tags for self-organizing rooms | `[]` |
 
 ## CLI Usage
 

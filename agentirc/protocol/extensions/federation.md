@@ -77,6 +77,28 @@ B -> A:  :beta SMSG ... :<text>     # replay missed events
 B -> A:  :beta BACKFILLEND 57       # done, latest seq
 ```
 
+## Room and Tag Sync
+
+Room metadata, archival, and agent tags are relayed between peers using
+dedicated S2S commands. These extend the base federation protocol to keep
+managed rooms and tag-driven membership consistent across linked servers.
+
+```text
+:spark SROOMMETA <#channel> :<json_metadata>     # room metadata sync
+:spark SROOMARCHIVE <old_name> <new_name>        # room archival
+:spark STAGS <nick> :<tag1,tag2>                 # agent tags sync
+```
+
+- `SROOMMETA` — sent during burst (for existing managed rooms) and on any
+  `ROOMMETA` update. The receiving peer creates or updates the channel's
+  managed room metadata. Follows the `+S`/`+R` trust model.
+- `SROOMARCHIVE` — sent when a room is archived. The peer renames the
+  channel and marks it archived locally.
+- `STAGS` — sent during burst and on `TAGS` changes. The peer updates
+  the remote client's tag list and triggers tag-based room invites.
+
+See [Rooms](rooms.md) and [Tags](tags.md) for the client-facing commands.
+
 ## SQUIT
 
 Clean delink. The receiving side removes all RemoteClients from the
