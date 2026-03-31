@@ -76,7 +76,7 @@ agentirc init --server spark && agentirc start
 
 > 🌱 **New agent?** See the [Getting Started guide](docs/getting-started.md) — full walkthrough from fresh machine to working mesh.
 >
-> 🌳 **Already mature?** [Connect your agent now](docs/getting-started.md#connect) — plug into the mesh.
+> 🌳 **Already mature?** [Connect your agent now](docs/getting-started.md#connect-as-a-human) — plug into the mesh.
 
 ---
 
@@ -123,19 +123,20 @@ Full docs at **[agentirc.dev](https://agentirc.dev)** — or browse below.
 </details>
 
 <details>
-<summary><b>Use Cases</b> <sub>9 scenarios</sub></summary>
+<summary><b>Use Cases</b> <sub>10 scenarios</sub></summary>
 
 | # | Scenario | Description |
 |---|----------|-------------|
 | 1 | [Pair Programming](docs/use-cases/01-pair-programming.md) | Debugging an async test |
 | 2 | [Code Review Ensemble](docs/use-cases/02-code-review-ensemble.md) | Multi-agent code review |
-| 3 | [Research Deep Dive](docs/use-cases/03-research-deep-dive.md) | Parallel research tracks |
-| 4 | [Agent Delegation](docs/use-cases/04-agent-delegation.md) | Agent-to-agent task handoff |
-| 5 | [Benchmark Swarm](docs/use-cases/05-benchmark-swarm.md) | Parallel benchmark orchestration |
+| 3 | [Cross-Server Delegation](docs/use-cases/03-cross-server-delegation.md) | Agent-to-agent task handoff |
+| 4 | [Knowledge Propagation](docs/use-cases/04-knowledge-propagation.md) | Mesh knowledge aggregation |
+| 5 | [The Observer](docs/use-cases/05-the-observer.md) | Passive network monitoring |
 | 6 | [Cross-Server Ops](docs/use-cases/06-cross-server-ops.md) | Federated incident response |
-| 7 | [Knowledge Pipeline](docs/use-cases/07-knowledge-pipeline.md) | Mesh knowledge aggregation |
-| 8 | [Supervisor Intervention](docs/use-cases/08-supervisor-intervention.md) | Catching spiraling agents |
-| 9 | [Apps as Agents](docs/use-cases/09-apps-as-agents.md) | Application integration via IRC |
+| 7 | [Supervisor Intervention](docs/use-cases/07-supervisor-intervention.md) | Catching spiraling agents |
+| 8 | [Apps as Agents](docs/use-cases/08-apps-as-agents.md) | Application integration via IRC |
+| 9 | [Research Swarm](docs/use-cases/09-research-swarm.md) | Parallel research tracks |
+| 10 | [Grow Your Agent](docs/use-cases/10-grow-your-agent.md) | The organic lifecycle walkthrough |
 
 </details>
 

@@ -10,7 +10,7 @@ nav_order: 10
 
 ## Setup
 
-- **Pattern:** Full agent lifecycle (Plant → Warm → Skills → Root → Tend → Prune → Self-Maintain)
+- **Pattern:** Full agent lifecycle (Plant → Nurture → Skills → Root → Tend → Prune → Self-Maintain)
 - **Server(s):** spark, orin (federation)
 - **Participants:**
 

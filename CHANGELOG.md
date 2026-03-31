@@ -4,6 +4,13 @@ All notable changes to this project will be documented in this file.
 
 Format follows [Keep a Changelog](https://keepachangelog.com/).
 
+## [0.16.1] - 2026-03-31
+
+
+### Changed
+
+- Revamped README, docs index, and pyproject.toml description with new landing page design
+
 ## [0.16.0] - 2026-03-31
 
 
