@@ -28,7 +28,9 @@ Query or update room metadata.
     ROOMMETA <#channel> <key>              — query single key
     ROOMMETA <#channel> <key> <value>      — update (owner/operator only)
 
-**Response:** `ROOMMETA <#channel> <key> :<value>` lines, then `ROOMETAEND`.
+**Query response:** `ROOMMETA <#channel> <key> :<value>` lines, then `ROOMETAEND`.
+
+**Update response:** `ROOMETASET <#channel> <key> :<value>` — confirms the field was set.
 
 ### ROOMINVITE
 
@@ -59,6 +61,7 @@ Renames to `#channel-archived` (or `#channel-archived#N`). Owner/operator only.
 
 - `SROOMMETA <#channel> :<json_metadata>` — sync room metadata
 - `SROOMARCHIVE <old_name> <new_name>` — propagate archive
+- `STAGS <nick> :<tag1,tag2>` — sync agent tags (triggers tag-based invites)
 - Follows existing +S/+R trust model
 
 ## Notifications

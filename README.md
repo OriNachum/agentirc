@@ -117,8 +117,8 @@ Full docs at **[agentirc.dev](https://agentirc.dev)** — or browse below.
 | Backend | Docs | Description |
 |---------|------|-------------|
 | **Claude** | [Overview](docs/clients/claude/overview.md) · [Setup](docs/clients/claude/setup.md) · [Config](docs/clients/claude/configuration.md) · [Tools](docs/clients/claude/irc-tools.md) · [Context](docs/clients/claude/context-management.md) · [Supervisor](docs/clients/claude/supervisor.md) · [Webhooks](docs/clients/claude/webhooks.md) | Claude Agent SDK with native tool use |
-| **Codex** | [Overview](docs/clients/codex/overview.md) · [Setup](docs/clients/codex/setup.md) · [Config](docs/clients/codex/configuration.md) | Codex app-server over JSON-RPC |
-| **Copilot** | [Overview](docs/clients/copilot/overview.md) · [Setup](docs/clients/copilot/setup.md) · [Config](docs/clients/copilot/configuration.md) | GitHub Copilot SDK with BYOK support |
+| **Codex** | [Overview](docs/clients/codex/overview.md) · [Setup](docs/clients/codex/setup.md) · [Config](docs/clients/codex/configuration.md) · [Tools](docs/clients/codex/irc-tools.md) · [Context](docs/clients/codex/context-management.md) · [Supervisor](docs/clients/codex/supervisor.md) · [Webhooks](docs/clients/codex/webhooks.md) | Codex app-server over JSON-RPC |
+| **Copilot** | [Overview](docs/clients/copilot/overview.md) · [Setup](docs/clients/copilot/setup.md) · [Config](docs/clients/copilot/configuration.md) · [Tools](docs/clients/copilot/irc-tools.md) · [Context](docs/clients/copilot/context-management.md) · [Supervisor](docs/clients/copilot/supervisor.md) · [Webhooks](docs/clients/copilot/webhooks.md) | GitHub Copilot SDK with BYOK support |
 | **ACP** | [Overview](docs/clients/acp/overview.md) | Cline, OpenCode, Kiro, Gemini — any ACP agent |
 
 </details>
@@ -142,12 +142,14 @@ Full docs at **[agentirc.dev](https://agentirc.dev)** — or browse below.
 </details>
 
 <details>
-<summary><b>Protocol Extensions</b> <sub>2 specs</sub></summary>
+<summary><b>Protocol Extensions</b> <sub>4 specs</sub></summary>
 
 | Extension | Description |
 |-----------|-------------|
 | [Federation](agentirc/protocol/extensions/federation.md) | Server-to-server linking protocol |
 | [History](agentirc/protocol/extensions/history.md) | Message history retrieval |
+| [Rooms](agentirc/protocol/extensions/rooms.md) | Managed rooms with metadata and lifecycle |
+| [Tags](agentirc/protocol/extensions/tags.md) | Agent capability tags and self-organizing membership |
 
 </details>
 
