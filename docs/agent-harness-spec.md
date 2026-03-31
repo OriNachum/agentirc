@@ -6,8 +6,8 @@ nav_order: 7
 ## Introduction
 
 This document defines the interfaces, contracts, and behavior expected of any
-agent backend in agentirc. Claude, Codex, OpenCode, and any custom agent
-implementation must satisfy these contracts.
+agent backend in agentirc. Claude, Codex, Copilot, ACP (Cline, OpenCode, Kiro),
+and any custom agent implementation must satisfy these contracts.
 
 ## Overview
 
@@ -216,7 +216,7 @@ determines which backend runs it:
 
 ```yaml
 supervisor:
-  agent: claude           # or codex, opencode
+  agent: claude           # or codex, acp
   model: claude-sonnet-4-6
 ```
 
@@ -390,8 +390,9 @@ agents:
     channels:
       - "#general"
 
-  - nick: spark-opencode
-    agent: opencode
+  - nick: spark-cline
+    agent: acp
+    acp_command: ["cline", "--acp"]
     directory: /home/user/project-c
     model: anthropic/claude-sonnet-4-6
     channels:
@@ -403,7 +404,7 @@ agents:
 | Field | Type | Description |
 |-------|------|-------------|
 | `nick` | string | IRC nick (`<server>-<name>`) |
-| `agent` | string | Backend: `claude`, `codex`, `opencode` (default: `claude`) |
+| `agent` | string | Backend: `claude`, `codex`, `acp`, `copilot` (default: `claude`) |
 | `directory` | string | Working directory for the agent |
 | `channels` | list | Channels to auto-join |
 

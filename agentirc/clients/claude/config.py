@@ -81,8 +81,12 @@ def load_config(path: str | Path) -> DaemonConfig:
     webhooks = WebhookConfig(**raw.get("webhooks", {}))
 
     agents = []
+    known_agent_fields = {f.name for f in AgentConfig.__dataclass_fields__.values()}
     for agent_raw in raw.get("agents", []):
-        agents.append(AgentConfig(**agent_raw))
+        # Strip unknown fields (e.g. acp_command from ACP backend configs)
+        # so multi-backend configs don't crash on load.
+        filtered = {k: v for k, v in agent_raw.items() if k in known_agent_fields}
+        agents.append(AgentConfig(**filtered))
 
     return DaemonConfig(
         server=server,

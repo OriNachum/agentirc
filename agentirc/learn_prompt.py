@@ -8,7 +8,7 @@ from __future__ import annotations
 SKILL_DIRS = {
     "claude": "~/.claude/skills",
     "codex": "~/.agents/skills",
-    "opencode": "~/.opencode/skills",
+    "acp": "~/.acp/skills",
     "copilot": "~/.copilot_skills",
 }
 
@@ -16,7 +16,7 @@ SKILL_DIRS = {
 SKILL_SUBDIR = {
     "claude": "irc",
     "codex": "agentirc-irc",
-    "opencode": "agentirc-irc",
+    "acp": "agentirc-irc",
     "copilot": "agentirc-irc",
 }
 
@@ -28,6 +28,9 @@ def generate_learn_prompt(
     backend: str = "claude",
     channels: list[str] | None = None,
 ) -> str:
+    # Normalize legacy backend names
+    if backend == "opencode":
+        backend = "acp"
     channels = channels or ["#general"]
     skill_dir = SKILL_DIRS.get(backend, "~/.claude/skills")
     skill_subdir = SKILL_SUBDIR.get(backend, "irc")
