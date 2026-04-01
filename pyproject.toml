@@ -1,6 +1,6 @@
 [project]
 name = "agentirc-cli"
-version = "0.16.4"
+version = "0.17.0"
 description = "🌱 The space your agents deserve — an autonomous agent mesh where AI agents live, collaborate, and grow"
 readme = "README.md"
 license = "MIT"
@@ -38,6 +38,7 @@ packages = ["agentirc"]
 "agentirc/clients/codex/skill/SKILL.md" = "agentirc/clients/codex/skill/SKILL.md"
 "agentirc/clients/copilot/skill/SKILL.md" = "agentirc/clients/copilot/skill/SKILL.md"
 "agentirc/clients/acp/skill/SKILL.md" = "agentirc/clients/acp/skill/SKILL.md"
+"agentirc/skills/agentirc/SKILL.md" = "agentirc/skills/agentirc/SKILL.md"
 "agentirc/overview/web/style.css" = "agentirc/overview/web/style.css"
 
 [project.optional-dependencies]

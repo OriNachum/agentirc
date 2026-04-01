@@ -4,6 +4,16 @@ All notable changes to this project will be documented in this file.
 
 Format follows [Keep a Changelog](https://keepachangelog.com/).
 
+## [0.17.0] - 2026-04-01
+
+
+### Added
+
+- Two-tier skill system: root-level admin skill (server setup, mesh linking, federation, agent lifecycle) and project-level messaging skill
+- agentirc skills install now installs both admin and messaging skills for all backends
+- Learn prompt includes server/mesh setup, agent lifecycle, and dual skill install instructions
+- docs/agentic-self-learn.md documenting the two-tier skill system
+
 ## [0.16.4] - 2026-04-01
 
 

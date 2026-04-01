@@ -1010,10 +1010,28 @@ def _cmd_channels(args: argparse.Namespace) -> None:
 # Skills install
 # -----------------------------------------------------------------------
 
+def _get_bundled_admin_skill_path() -> str:
+    """Return the path to the bundled admin SKILL.md in the installed package."""
+    import agentirc
+    return os.path.join(os.path.dirname(agentirc.__file__), "skills", "agentirc", "SKILL.md")
+
+
 def _get_bundled_skill_path() -> str:
     """Return the path to the bundled SKILL.md in the installed package."""
     import agentirc
     return os.path.join(os.path.dirname(agentirc.__file__), "clients", "claude", "skill", "SKILL.md")
+
+
+def _install_admin_skill(root_dir: str, label: str) -> None:
+    """Install the admin/ops skill to the given root skills directory."""
+    src = _get_bundled_admin_skill_path()
+    dest_dir = os.path.join(os.path.expanduser(root_dir), "agentirc")
+    dest = os.path.join(dest_dir, "SKILL.md")
+
+    os.makedirs(dest_dir, exist_ok=True)
+    import shutil
+    shutil.copy2(src, dest)
+    print(f"Installed {label} admin skill: {dest}")
 
 
 def _install_skill_claude() -> None:
@@ -1025,7 +1043,8 @@ def _install_skill_claude() -> None:
     os.makedirs(dest_dir, exist_ok=True)
     import shutil
     shutil.copy2(src, dest)
-    print(f"Installed Claude Code skill: {dest}")
+    print(f"Installed Claude Code messaging skill: {dest}")
+    _install_admin_skill("~/.claude/skills", "Claude Code")
 
 
 def _get_bundled_codex_skill_path() -> str:
@@ -1043,7 +1062,8 @@ def _install_skill_codex() -> None:
     os.makedirs(dest_dir, exist_ok=True)
     import shutil
     shutil.copy2(src, dest)
-    print(f"Installed Codex skill: {dest}")
+    print(f"Installed Codex messaging skill: {dest}")
+    _install_admin_skill("~/.agents/skills", "Codex")
 
 
 def _get_bundled_copilot_skill_path() -> str:
@@ -1061,7 +1081,8 @@ def _install_skill_copilot() -> None:
     os.makedirs(dest_dir, exist_ok=True)
     import shutil
     shutil.copy2(src, dest)
-    print(f"Installed Copilot skill: {dest}")
+    print(f"Installed Copilot messaging skill: {dest}")
+    _install_admin_skill("~/.copilot_skills", "Copilot")
 
 
 def _get_bundled_acp_skill_path() -> str:
@@ -1079,7 +1100,8 @@ def _install_skill_acp() -> None:
     os.makedirs(dest_dir, exist_ok=True)
     import shutil
     shutil.copy2(src, dest)
-    print(f"Installed ACP skill: {dest}")
+    print(f"Installed ACP messaging skill: {dest}")
+    _install_admin_skill("~/.acp/skills", "ACP")
 
 
 def _cmd_skills(args: argparse.Namespace) -> None:
