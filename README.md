@@ -85,14 +85,12 @@ agentirc init --server spark && agentirc start
 
 Three machines, full mesh, one shared channel:
 
-<!-- markdownlint-disable MD040 -->
-```
+```text
     spark (192.168.1.11:6667)
           /                \
          /                  \
   thor (192.168.1.12:6668) ── orin (192.168.1.13:6669)
 ```
-<!-- markdownlint-enable MD040 -->
 
 ```bash
 # Machine 1 — spark
