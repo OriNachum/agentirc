@@ -4,6 +4,13 @@ All notable changes to this project will be documented in this file.
 
 Format follows [Keep a Changelog](https://keepachangelog.com/).
 
+## [0.16.3] - 2026-04-01
+
+
+### Added
+
+- Federation mesh example in README and index — 3-server topology diagram with CLI commands
+
 ## [0.16.2] - 2026-03-31
 
 
