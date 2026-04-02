@@ -51,6 +51,53 @@ class ThreadsSkill(Skill):
         self._threads: dict[tuple[str, str], Thread] = {}
         self.max_messages = max_messages
 
+    async def start(self, server) -> None:
+        await super().start(server)
+        self._restore_threads()
+
+    def _restore_threads(self) -> None:
+        """Reload persisted threads from disk on startup."""
+        if not self.server.config.data_dir:
+            return
+        from agentirc.server.thread_store import ThreadStore
+        store = ThreadStore(self.server.config.data_dir)
+        for data in store.load_all():
+            thread = Thread(
+                name=data["name"],
+                channel=data["channel"],
+                creator=data["creator"],
+                created_at=data["created_at"],
+                archived=data.get("archived", False),
+                summary=data.get("summary"),
+                max_messages=self.max_messages,
+            )
+            for m in data.get("messages", []):
+                thread.messages.append(ThreadMessage(
+                    nick=m["nick"], text=m["text"],
+                    timestamp=m["timestamp"], seq=m.get("seq", 0),
+                ))
+            self._threads[(data["channel"], data["name"])] = thread
+
+    def _persist_thread(self, thread: Thread) -> None:
+        """Save a thread to disk if data_dir is configured."""
+        if not self.server.config.data_dir:
+            return
+        from agentirc.server.thread_store import ThreadStore
+        store = ThreadStore(self.server.config.data_dir)
+        store.save({
+            "name": thread.name,
+            "channel": thread.channel,
+            "creator": thread.creator,
+            "created_at": thread.created_at,
+            "archived": thread.archived,
+            "summary": thread.summary,
+            "messages": [
+                {"nick": m.nick, "text": m.text,
+                 "timestamp": m.timestamp, "seq": m.seq}
+                for m in thread.messages
+            ],
+        })
+
     async def on_command(self, client: Client, msg: Message) -> None:
         handler = {
             "THREAD": self._handle_thread,
@@ -141,6 +188,9 @@ class ThreadsSkill(Skill):
         # Deliver prefixed PRIVMSG to channel members
         prefixed = await self._deliver_thread_msg(client, channel, thread_name, text)
 
+        # Persist
+        self._persist_thread(thread)
+
         # Emit event
         await self.server.emit_event(Event(
             type=EventType.THREAD_CREATE,
@@ -203,6 +253,9 @@ class ThreadsSkill(Skill):
 
         # Deliver prefixed PRIVMSG to channel members
         prefixed = await self._deliver_thread_msg(client, channel, thread_name, text)
+
+        # Persist
+        self._persist_thread(thread)
 
         # Emit event
         await self.server.emit_event(Event(
@@ -360,6 +413,9 @@ class ThreadsSkill(Skill):
             if not isinstance(member, RemoteClient):
                 await member.send(notice)
 
+        # Persist
+        self._persist_thread(thread)
+
         # Emit event
         await self.server.emit_event(Event(
             type=EventType.THREAD_CLOSE,
@@ -472,6 +528,9 @@ class ThreadsSkill(Skill):
         for member in list(channel.members):
             if not isinstance(member, RemoteClient):
                 await member.send(notice)
+
+        # Persist
+        self._persist_thread(thread)
 
         # Emit event
         await self.server.emit_event(Event(

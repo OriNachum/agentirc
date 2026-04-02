@@ -1,5 +1,6 @@
 """Tests for ThreadsSkill — CREATE, REPLY, THREADS list, THREADCLOSE, PROMOTE."""
 import asyncio
+import tempfile
 import pytest
 
 
@@ -284,3 +285,57 @@ async def test_threadclose_promote_replays_history(server, make_client):
     assert len(notices) >= 2
     assert any("Message one" in n for n in notices)
     assert any("Message two" in n for n in notices)
+
+
+@pytest.mark.asyncio
+async def test_threads_persist_across_restart():
+    """Threads should survive server restart when data_dir is configured."""
+    from agentirc.server.config import ServerConfig
+    from agentirc.server.ircd import IRCd
+    from tests.conftest import IRCTestClient
+
+    with tempfile.TemporaryDirectory() as data_dir:
+        config = ServerConfig(name="testserv", host="127.0.0.1", port=0,
+                              data_dir=data_dir)
+
+        # Start server, create a thread
+        ircd = IRCd(config)
+        await ircd.start()
+        port = ircd._server.sockets[0].getsockname()[1]
+        ircd.config.port = port
+
+        reader, writer = await asyncio.open_connection("127.0.0.1", port)
+        alice = IRCTestClient(reader, writer)
+        await alice.send("NICK testserv-alice")
+        await alice.send("USER alice 0 * :alice")
+        await alice.recv_all(timeout=0.5)
+        await alice.send("JOIN #general")
+        await alice.recv_all(timeout=0.5)
+        await alice.send("THREAD CREATE #general persist-test :Hello")
+        await alice.recv_all(timeout=0.5)
+
+        await alice.close()
+        await ircd.stop()
+
+        # Restart server
+        ircd2 = IRCd(config)
+        await ircd2.start()
+        port2 = ircd2._server.sockets[0].getsockname()[1]
+        ircd2.config.port = port2
+
+        reader2, writer2 = await asyncio.open_connection("127.0.0.1", port2)
+        bob = IRCTestClient(reader2, writer2)
+        await bob.send("NICK testserv-bob")
+        await bob.send("USER bob 0 * :bob")
+        await bob.recv_all(timeout=0.5)
+        await bob.send("JOIN #general")
+        await bob.recv_all(timeout=0.5)
+
+        # Thread should still exist
+        await bob.send("THREADS #general")
+        lines = await bob.recv_all(timeout=1.0)
+        thread_lines = [l for l in lines if "THREADS" in l and "THREADSEND" not in l]
+        assert any("persist-test" in l for l in thread_lines)
+
+        await bob.close()
+        await ircd2.stop()
