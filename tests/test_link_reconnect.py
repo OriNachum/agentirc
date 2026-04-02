@@ -1,0 +1,64 @@
+# tests/test_link_reconnect.py
+"""S2S link auto-reconnect tests."""
+
+import asyncio
+
+import pytest
+
+from agentirc.server.config import LinkConfig, ServerConfig
+from agentirc.server.ircd import IRCd
+
+
+@pytest.mark.asyncio
+async def test_link_drop_triggers_retry():
+    """When a linked peer drops (non-SQUIT), the server schedules retry."""
+    password = "testlink123"
+
+    config_a = ServerConfig(
+        name="alpha",
+        host="127.0.0.1",
+        port=0,
+        links=[LinkConfig(name="beta", host="127.0.0.1", port=0, password=password)],
+    )
+    config_b = ServerConfig(
+        name="beta",
+        host="127.0.0.1",
+        port=0,
+        links=[LinkConfig(name="alpha", host="127.0.0.1", port=0, password=password)],
+    )
+
+    server_a = IRCd(config_a)
+    server_b = IRCd(config_b)
+
+    await server_a.start()
+    await server_b.start()
+
+    server_a.config.port = server_a._server.sockets[0].getsockname()[1]
+    server_b.config.port = server_b._server.sockets[0].getsockname()[1]
+
+    # Update link configs with actual ports
+    config_a.links[0].port = server_b.config.port
+    config_b.links[0].port = server_a.config.port
+
+    # Link the servers
+    await server_a.connect_to_peer("127.0.0.1", server_b.config.port, password)
+    for _ in range(50):
+        if "beta" in server_a.links and "alpha" in server_b.links:
+            break
+        await asyncio.sleep(0.05)
+    assert "beta" in server_a.links
+
+    # Kill server B abruptly (non-SQUIT drop)
+    await server_b.stop()
+
+    # Wait for alpha to detect the link drop and schedule retry
+    for _ in range(50):
+        if "beta" in server_a._link_retry_state:
+            break
+        await asyncio.sleep(0.05)
+
+    assert "beta" in server_a._link_retry_state
+    assert server_a._link_retry_state["beta"]["task"] is not None
+
+    # Cleanup
+    await server_a.stop()
