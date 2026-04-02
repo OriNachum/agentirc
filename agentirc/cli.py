@@ -22,7 +22,9 @@ import asyncio
 import json
 import logging
 import os
+import shutil
 import signal
+import subprocess
 import sys
 import time
 
@@ -92,6 +94,10 @@ def _build_parser() -> argparse.ArgumentParser:
         "--link", type=_parse_link, action="append", default=[],
         help="Link to peer: name:host:port:password",
     )
+    srv_start.add_argument(
+        "--foreground", action="store_true",
+        help="Run in foreground (for service managers)",
+    )
 
     srv_stop = server_sub.add_parser("stop", help="Stop the IRC server daemon")
     srv_stop.add_argument("--name", default="agentirc", help="Server name")
@@ -112,6 +118,10 @@ def _build_parser() -> argparse.ArgumentParser:
     start_parser.add_argument("nick", nargs="?", help="Agent nick to start")
     start_parser.add_argument("--all", action="store_true", help="Start all agents")
     start_parser.add_argument("--config", default=DEFAULT_CONFIG, help="Config file path")
+    start_parser.add_argument(
+        "--foreground", action="store_true",
+        help="Run in foreground (for service managers)",
+    )
 
     # -- stop subcommand ---------------------------------------------------
     stop_parser = sub.add_parser("stop", help="Stop agent daemon(s)")
@@ -253,10 +263,25 @@ def _server_start(args: argparse.Namespace) -> None:
         print(f"Server '{args.name}' is already running (PID {existing})")
         sys.exit(1)
 
+    if getattr(args, "foreground", False):
+        # Foreground mode — run directly (for service managers)
+        write_pid(pid_name, os.getpid())
+        os.makedirs(LOG_DIR, exist_ok=True)
+        print(f"Server '{args.name}' starting in foreground (PID {os.getpid()})")
+        print(f"  Listening on {args.host}:{args.port}")
+        try:
+            asyncio.run(_run_server(args.name, args.host, args.port, args.link))
+        finally:
+            remove_pid(pid_name)
+        return
+
+    if sys.platform == "win32":
+        print("Daemon mode not supported on Windows. Use --foreground.", file=sys.stderr)
+        sys.exit(1)
+
     # Fork to daemonize
     pid = os.fork()
     if pid > 0:
-        # Parent: wait briefly to check child started, then exit
         time.sleep(0.2)
         if is_process_alive(pid):
             print(f"Server '{args.name}' started (PID {pid})")
@@ -278,15 +303,12 @@ def _server_start(args: argparse.Namespace) -> None:
     os.dup2(log_fd, 2)
     os.close(log_fd)
 
-    # Close stdin
     devnull = os.open(os.devnull, os.O_RDONLY)
     os.dup2(devnull, 0)
     os.close(devnull)
 
-    # Write PID file
     write_pid(pid_name, os.getpid())
 
-    # Run the server
     try:
         asyncio.run(_run_server(args.name, args.host, args.port, args.link))
     finally:
@@ -348,11 +370,18 @@ def _server_stop(args: argparse.Namespace) -> None:
         time.sleep(0.1)
 
     # Force kill
-    print(f"Server '{args.name}' did not stop gracefully, sending SIGKILL")
-    try:
-        os.kill(pid, signal.SIGKILL)
-    except ProcessLookupError:
-        pass
+    if sys.platform == "win32":
+        print(f"Server '{args.name}' did not stop gracefully, terminating")
+        try:
+            os.kill(pid, signal.SIGTERM)
+        except ProcessLookupError:
+            pass
+    else:
+        print(f"Server '{args.name}' did not stop gracefully, sending SIGKILL")
+        try:
+            os.kill(pid, signal.SIGKILL)
+        except ProcessLookupError:
+            pass
     remove_pid(pid_name)
     print(f"Server '{args.name}' killed")
 
@@ -517,12 +546,16 @@ def _cmd_start(args: argparse.Namespace) -> None:
         sys.exit(1)
 
     if len(agents) == 1:
-        # Run in foreground (single agent)
         agent = agents[0]
         print(f"Starting agent {agent.nick}...")
         asyncio.run(_run_single_agent(config, agent))
     else:
-        # Fork each agent into background
+        if getattr(args, "foreground", False):
+            print("--foreground requires a single agent nick, not --all", file=sys.stderr)
+            sys.exit(1)
+        if sys.platform == "win32":
+            print("Multi-agent daemon mode not supported on Windows. Start agents individually with --foreground.", file=sys.stderr)
+            sys.exit(1)
         _run_multi_agents(config, agents)
 
 
@@ -721,11 +754,18 @@ def _stop_agent(nick: str) -> None:
         time.sleep(0.1)
 
     # Force kill
-    print(f"Agent '{nick}' did not stop gracefully, sending SIGKILL")
-    try:
-        os.kill(pid, signal.SIGKILL)
-    except ProcessLookupError:
-        pass
+    if sys.platform == "win32":
+        print(f"Agent '{nick}' did not stop gracefully, terminating")
+        try:
+            os.kill(pid, signal.SIGTERM)
+        except ProcessLookupError:
+            pass
+    else:
+        print(f"Agent '{nick}' did not stop gracefully, sending SIGKILL")
+        try:
+            os.kill(pid, signal.SIGKILL)
+        except ProcessLookupError:
+            pass
     remove_pid(pid_name)
     print(f"Agent '{nick}' killed")
 
