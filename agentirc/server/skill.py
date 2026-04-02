@@ -20,6 +20,9 @@ class EventType(Enum):
     ROOMMETA = "roommeta"
     TAGS = "tags"
     ROOMARCHIVE = "roomarchive"
+    THREAD_CREATE = "thread_create"
+    THREAD_MESSAGE = "thread_message"
+    THREAD_CLOSE = "thread_close"
 
 
 @dataclass
