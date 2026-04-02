@@ -1248,6 +1248,30 @@ def _cmd_overview(args: argparse.Namespace) -> None:
 
 
 # -----------------------------------------------------------------------
+# Shared helpers for setup / update
+# -----------------------------------------------------------------------
+
+def _build_mesh_link_args(mesh) -> list[str]:
+    """Build --link CLI args from mesh config links."""
+    link_args = []
+    for link in mesh.server.links:
+        link_args.extend([
+            "--link", f"{link.name}:{link.host}:{link.port}:{link.password}:{link.trust}"
+        ])
+    return link_args
+
+
+def _build_server_start_cmd(mesh, agentirc_bin: str) -> list[str]:
+    """Build the server start command with --foreground and link args."""
+    return [
+        agentirc_bin, "server", "start", "--foreground",
+        "--name", mesh.server.name,
+        "--host", mesh.server.host,
+        "--port", str(mesh.server.port),
+    ] + _build_mesh_link_args(mesh)
+
+
+# -----------------------------------------------------------------------
 # Setup — mesh.yaml → auto-start services
 # -----------------------------------------------------------------------
 
@@ -1322,22 +1346,9 @@ def _cmd_setup(args: argparse.Namespace) -> None:
         save_config(config_path, daemon_config)
         print(f"  Wrote {config_path}")
 
-    # Build link args for server command
-    link_args = []
-    for link in mesh.server.links:
-        link_args.extend([
-            "--link", f"{link.name}:{link.host}:{link.port}:{link.password}:{link.trust}"
-        ])
-
     # Install auto-start services
     agentirc_bin = shutil.which("agentirc") or "agentirc"
-
-    server_cmd = [
-        agentirc_bin, "server", "start", "--foreground",
-        "--name", server_name,
-        "--host", mesh.server.host,
-        "--port", str(mesh.server.port),
-    ] + link_args
+    server_cmd = _build_server_start_cmd(mesh, agentirc_bin)
     svc_name = f"agentirc-server-{server_name}"
     path = install_service(svc_name, server_cmd, f"agentirc server {server_name}")
     print(f"  Installed {svc_name} → {path}")
@@ -1356,16 +1367,33 @@ def _cmd_setup(args: argparse.Namespace) -> None:
 
 
 def _server_stop_by_name(name: str) -> None:
-    """Stop a server by name (helper for setup --uninstall)."""
+    """Stop a server by name (helper for setup --uninstall and update)."""
     pid_name = f"server-{name}"
     pid = read_pid(pid_name)
-    if pid and is_process_alive(pid):
-        os.kill(pid, signal.SIGTERM)
-        for _ in range(50):
-            if not is_process_alive(pid):
-                break
-            time.sleep(0.1)
-        remove_pid(pid_name)
+    if not pid or not is_process_alive(pid):
+        if pid:
+            remove_pid(pid_name)
+        return
+
+    os.kill(pid, signal.SIGTERM)
+    for _ in range(50):
+        if not is_process_alive(pid):
+            remove_pid(pid_name)
+            return
+        time.sleep(0.1)
+
+    # Escalate to SIGKILL (SIGTERM on Windows)
+    if sys.platform == "win32":
+        try:
+            os.kill(pid, signal.SIGTERM)
+        except ProcessLookupError:
+            pass
+    else:
+        try:
+            os.kill(pid, signal.SIGKILL)
+        except ProcessLookupError:
+            pass
+    remove_pid(pid_name)
 
 
 # -----------------------------------------------------------------------
@@ -1452,18 +1480,7 @@ def _cmd_update(args: argparse.Namespace) -> None:
     from agentirc.persistence import install_service
 
     agentirc_bin = shutil.which("agentirc") or "agentirc"
-    link_args = []
-    for link in mesh.server.links:
-        link_args.extend([
-            "--link", f"{link.name}:{link.host}:{link.port}:{link.password}:{link.trust}"
-        ])
-
-    server_cmd = [
-        agentirc_bin, "server", "start", "--foreground",
-        "--name", server_name,
-        "--host", mesh.server.host,
-        "--port", str(mesh.server.port),
-    ] + link_args
+    server_cmd = _build_server_start_cmd(mesh, agentirc_bin)
     install_service(f"agentirc-server-{server_name}", server_cmd, f"agentirc server {server_name}")
 
     for agent in mesh.agents:
@@ -1486,7 +1503,7 @@ def _cmd_update(args: argparse.Namespace) -> None:
             "--name", server_name,
             "--host", mesh.server.host,
             "--port", str(mesh.server.port),
-        ] + link_args, check=False)
+        ] + _build_mesh_link_args(mesh), check=False)
 
     # Wait for server to be ready
     import socket as _socket

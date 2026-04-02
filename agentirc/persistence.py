@@ -93,8 +93,10 @@ def _build_windows_bat(command: list[str]) -> str:
         f"@echo off\n"
         f":loop\n"
         f"{cmd_line}\n"
+        f"if %ERRORLEVEL% EQU 0 goto end\n"
         f"timeout /t 5\n"
         f"goto loop\n"
+        f":end\n"
     )
 
 

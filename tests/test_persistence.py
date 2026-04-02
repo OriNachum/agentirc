@@ -63,8 +63,10 @@ def test_build_windows_bat():
     )
     assert ":loop" in bat
     assert "agentirc server start --foreground --name spark" in bat
+    assert "if %ERRORLEVEL% EQU 0 goto end" in bat
     assert "timeout /t 5" in bat
     assert "goto loop" in bat
+    assert ":end" in bat
 
 
 def test_install_service_linux(tmp_path):
