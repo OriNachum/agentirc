@@ -53,6 +53,9 @@ jobs:
           uv run pytest --cov=agentirc --cov-report=xml:coverage.xml --cov-report=term -v
         continue-on-error: true
 
+      - name: Set SonarCloud org
+        run: echo "SONAR_ORG=$(echo '${{ github.repository_owner }}' | tr '[:upper:]' '[:lower:]')" >> "$GITHUB_ENV"
+
       - name: SonarCloud Scan
         uses: SonarSource/sonarqube-scan-action@v7
         env:
@@ -61,7 +64,7 @@ jobs:
         with:
           args: >
             -Dsonar.projectKey=OriNachum_AgentIRC
-            -Dsonar.organization=${{ github.repository_owner }}
+            -Dsonar.organization=${{ env.SONAR_ORG }}
             -Dsonar.python.coverage.reportPaths=coverage.xml
             -Dsonar.python.bandit.reportPaths=bandit-results.json
             -Dsonar.python.pylint.reportPaths=pylint-results.json

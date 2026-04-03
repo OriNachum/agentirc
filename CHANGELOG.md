@@ -4,6 +4,13 @@ All notable changes to this project will be documented in this file.
 
 Format follows [Keep a Changelog](https://keepachangelog.com/).
 
+## [0.20.1] - 2026-04-03
+
+
+### Fixed
+
+- Fix SonarCloud org key case — lowercase repository_owner for SonarCloud compatibility
+
 ## [0.20.0] - 2026-04-03
 
 
