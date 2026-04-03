@@ -1,0 +1,19 @@
+[flake8]
+max-line-length = 100
+exclude =
+    .git,
+    __pycache__,
+    .venv,
+    dist,
+    build,
+    .eggs,
+    packages
+extend-ignore =
+    E203,
+    W503,
+    S101
+per-file-ignores =
+    agentirc/credentials.py:S603,S607
+    agentirc/persistence.py:S603,S607
+    agentirc/cli.py:S603,S607
+    tests/*:S101

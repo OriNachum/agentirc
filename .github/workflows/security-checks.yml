@@ -1,0 +1,99 @@
+name: Security Checks
+
+on:
+  push:
+    branches: [main]
+  pull_request:
+    branches: [main]
+  schedule:
+    - cron: '0 0 * * 0'  # Weekly on Sunday at midnight
+  workflow_dispatch:
+
+permissions:
+  contents: read
+
+jobs:
+  security-scans:
+    name: Security Scans
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v4
+        with:
+          fetch-depth: 0
+
+      - uses: astral-sh/setup-uv@v4
+
+      - run: uv python install 3.12
+
+      - run: uv sync
+
+      - name: Run Bandit
+        run: uv run bandit -r agentirc/ -f json -o bandit-results.json -c pyproject.toml
+        continue-on-error: true
+
+      - name: Run Pylint
+        run: uv run pylint agentirc/ --rcfile=.pylintrc --output-format=json:pylint-results.json,text
+        continue-on-error: true
+
+      - name: Run Safety dependency check
+        run: uv run safety check --full-report --output json > safety-results.json
+        continue-on-error: true
+
+      - name: Upload Security Results
+        uses: actions/upload-artifact@v4
+        with:
+          name: security-results
+          path: |
+            bandit-results.json
+            pylint-results.json
+            safety-results.json
+
+      - name: Run test coverage
+        run: |
+          uv run pytest --cov=agentirc --cov-report=xml:coverage.xml --cov-report=term -v
+        continue-on-error: true
+
+      - name: SonarCloud Scan
+        uses: SonarSource/sonarqube-scan-action@v7
+        env:
+          GITHUB_TOKEN: ${{ secrets.GITHUB_TOKEN }}
+          SONAR_TOKEN: ${{ secrets.SONAR_TOKEN }}
+        with:
+          args: >
+            -Dsonar.projectKey=OriNachum_AgentIRC
+            -Dsonar.organization=${{ github.repository_owner }}
+            -Dsonar.python.coverage.reportPaths=coverage.xml
+            -Dsonar.python.bandit.reportPaths=bandit-results.json
+            -Dsonar.python.pylint.reportPaths=pylint-results.json
+
+  dependency-review:
+    name: Dependency Review
+    if: github.event_name == 'pull_request'
+    runs-on: ubuntu-latest
+    permissions:
+      contents: read
+      pull-requests: write
+    steps:
+      - uses: actions/checkout@v4
+
+      - name: Dependency Review
+        uses: actions/dependency-review-action@v4
+        with:
+          fail-on-severity: high
+
+  codeql-analysis:
+    name: CodeQL Analysis
+    runs-on: ubuntu-latest
+    permissions:
+      contents: read
+      security-events: write
+    steps:
+      - uses: actions/checkout@v4
+
+      - name: Initialize CodeQL
+        uses: github/codeql-action/init@v3
+        with:
+          languages: python
+
+      - name: Perform CodeQL Analysis
+        uses: github/codeql-action/analyze@v3
