@@ -48,4 +48,43 @@ copilot = ["github-copilot-sdk"]
 dev = [
     "pytest>=8.0",
     "pytest-asyncio>=0.25",
+    "pytest-cov>=4.1",
+    "bandit>=1.7.5",
+    "pylint>=2.17.0",
+    "flake8>=6.1",
+    "flake8-bandit>=4.1.1",
+    "flake8-bugbear>=23.7.10",
+    "coverage>=7.2.0",
+    "safety>=2.3.0",
+    "pre-commit>=3.5.0",
+    "isort>=5.12.0",
+    "black>=23.7.0",
 ]
+
+[tool.coverage.run]
+source = ["agentirc"]
+omit = [
+    "agentirc/__pycache__/*",
+]
+
+[tool.coverage.report]
+fail_under = 50
+show_missing = true
+exclude_lines = [
+    "pragma: no cover",
+    "if __name__ == .__main__.",
+    "if TYPE_CHECKING:",
+]
+
+[tool.isort]
+profile = "black"
+line_length = 100
+known_first_party = ["agentirc"]
+
+[tool.black]
+line-length = 100
+target-version = ["py312"]
+
+[tool.bandit]
+exclude_dirs = ["tests", "packages"]
+skips = ["B101", "B104"]

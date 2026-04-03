@@ -206,6 +206,12 @@ marimo/_static/
 marimo/_lsp/
 __marimo__/
 
+# Security scan reports
+bandit-results.json
+pylint-results.json
+safety-results.json
+.sonar/
+
 # Superpowers & worktrees
 .superpowers/
 .worktrees/
