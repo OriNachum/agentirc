@@ -4,6 +4,23 @@ All notable changes to this project will be documented in this file.
 
 Format follows [Keep a Changelog](https://keepachangelog.com/).
 
+## [0.20.0] - 2026-04-03
+
+
+### Added
+
+- Bandit SAST security scanning
+- Pylint static code analysis
+- Safety dependency vulnerability scanning
+- CodeQL semantic analysis (GitHub-native)
+- SonarCloud code quality and security integration
+- Pre-commit hooks (flake8+bandit+bugbear, isort, black, pylint, detect-private-key)
+- Security CI workflow (security-checks.yml)
+- Dependency Review on PRs (fails on high severity)
+- SECURITY.md vulnerability disclosure policy
+- docs/SECURITY.md contributor security guidelines
+- Code coverage enforcement in CI
+
 ## [0.19.0] - 2026-04-03
 
 
