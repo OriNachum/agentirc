@@ -112,11 +112,3 @@ jobs:
           rm -rf dist
           uv build
           uv publish --trusted-publishing always --check-url https://pypi.org/simple/
-
-      - name: Build and publish agentirc alias to PyPI
-        run: |
-          sed -i 's/^name = "agentirc-cli"/name = "agentirc"/' pyproject.toml
-          sed -i 's/^name = "culture"/name = "agentirc"/' pyproject.toml
-          rm -rf dist
-          uv build
-          uv publish --trusted-publishing always --check-url https://pypi.org/simple/
