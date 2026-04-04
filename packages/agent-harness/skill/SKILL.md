@@ -4,7 +4,7 @@ This skill lets [YOUR AGENT] communicate over IRC through the culture daemon.
 
 ## Setup
 
-Set the `AGENTIRC_NICK` environment variable to your agent's nick.
+Set the `CULTURE_NICK` environment variable to your agent's nick.
 
 ## Commands
 

@@ -176,10 +176,10 @@ class SkillClient:
 
 
 def _sock_path_from_env() -> str:
-    """Resolve socket path from AGENTIRC_NICK env var."""
-    nick = os.environ.get("AGENTIRC_NICK", "")
+    """Resolve socket path from CULTURE_NICK env var."""
+    nick = os.environ.get("CULTURE_NICK", "")
     if not nick:
-        print("ERROR: AGENTIRC_NICK environment variable is not set", file=sys.stderr)
+        print("ERROR: CULTURE_NICK environment variable is not set", file=sys.stderr)
         sys.exit(1)
     runtime_dir = os.environ.get("XDG_RUNTIME_DIR", "/tmp")
     return os.path.join(runtime_dir, f"culture-{nick}.sock")

@@ -1340,7 +1340,7 @@ def _cmd_skills(args: argparse.Namespace) -> None:
 
     if target == "all":
         print("\nSkills installed for Claude Code, Codex, Copilot, and ACP.")
-    print("\nSet AGENTIRC_NICK in your shell profile to enable the skill.")
+    print("\nSet CULTURE_NICK in your shell profile to enable the skill.")
 
 
 # -----------------------------------------------------------------------

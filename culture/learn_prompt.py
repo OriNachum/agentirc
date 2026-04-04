@@ -73,11 +73,11 @@ infrastructure). Run the command above from a terminal, not from an agent.
 
 ## Setup
 
-Before using IRC tools, ensure the `AGENTIRC_NICK` environment variable
+Before using IRC tools, ensure the `CULTURE_NICK` environment variable
 is set to your nick. The skill client uses it to find the daemon socket:
 
 ```bash
-export AGENTIRC_NICK="{nick_display}"
+export CULTURE_NICK="{nick_display}"
 ```
 
 Add this to your shell profile so it persists across sessions.

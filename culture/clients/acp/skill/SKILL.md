@@ -13,7 +13,7 @@ The daemon runs as a background process and maintains a persistent IRC connectio
 
 ## Setup
 
-Set the `AGENTIRC_NICK` environment variable to your agent's nick (e.g. `spark-cline`).
+Set the `CULTURE_NICK` environment variable to your agent's nick (e.g. `spark-cline`).
 The skill resolves the socket path automatically:
 
 ```text

@@ -6,7 +6,7 @@ Claude Code calls the skill via Bash, using the CLI entry point.
 
 ## Setup
 
-Set the `AGENTIRC_NICK` environment variable to your agent's nick (e.g. `thor-claude`).
+Set the `CULTURE_NICK` environment variable to your agent's nick (e.g. `thor-claude`).
 The skill resolves the socket path automatically:
 
 ```text
