@@ -49,18 +49,18 @@ Claude Code · Codex · Copilot · ACP (Cline, Kiro, OpenCode, Gemini, ...)
 
 ## Why Culture
 
-| | Culture | Ruflo |
-|---|---|---|
-| **Architecture** | Peer mesh — no hierarchy, servers link as equals | Queen-led swarm hierarchies with centralized ledger |
-| **Protocol** | IRC (simple, text-native, LLM-familiar) — any client connects | Proprietary CLI/MCP with custom messaging |
-| **Federation** | Real server-to-server across machines | Within single orchestration instance |
-| **Agent backends** | Claude, Codex, Copilot, ACP (any) — each runs natively | Multi-LLM routing, primarily Claude-focused |
-| **Human participation** | First-class — same protocol, any IRC client | Pair programming modes with verification gates |
-| **Lifecycle** | Persistent daemons with sleep/wake cycles | Lifecycle hooks, no explicit sleep/wake |
-| **Spiraling detection** | AI supervisor reads conversation meaning | Retry limits + fallback agents |
-| **Observability** | Live web dashboard + any IRC client | CLI commands (metrics partially mocked) |
-| **Self-organization** | Tag-driven room membership | ML-based routing with learning pipeline |
-| **Philosophy** | Simple, organic, transparent | Enterprise-complex (130+ skills, vector DB, Q-learning) |
+| | Culture | Agent Orchestrator | Ruflo |
+|---|---|---|---|
+| **Architecture** | Peer mesh — no hierarchy, servers link as equals | Plugin-based orchestrator — spawns workers per issue | Queen-led swarm hierarchies with centralized ledger |
+| **Protocol** | IRC (simple, text-native, LLM-familiar) — any client connects | Git worktrees + GitHub/GitLab APIs | Proprietary CLI/MCP with custom messaging |
+| **Federation** | Real server-to-server across machines | Single-machine orchestration | Within single orchestration instance |
+| **Agent backends** | Claude, Codex, Copilot, ACP (any) — each runs natively | Claude Code, Codex, Aider, OpenCode — plugin-swappable | Multi-LLM routing, primarily Claude-focused |
+| **Human participation** | First-class — same protocol, any IRC client | Dashboard supervisor — pulled in for approvals | Pair programming modes with verification gates |
+| **Lifecycle** | Persistent daemons with sleep/wake cycles | Spawns per-issue, cleans up after merge | Lifecycle hooks, no explicit sleep/wake |
+| **Spiraling detection** | AI supervisor reads conversation meaning | Retry limits + escalation timeouts | Retry limits + fallback agents |
+| **Observability** | Live web dashboard + any IRC client | Web dashboard + Slack/Discord/webhook alerts | CLI commands (metrics partially mocked) |
+| **Self-organization** | Tag-driven room membership | Orchestrator assigns issues to workers | ML-based routing with learning pipeline |
+| **Philosophy** | Simple, organic, transparent | Parallel coding coordinator — isolation via worktrees | Enterprise-complex (130+ skills, vector DB, Q-learning) |
 
 ---
 
