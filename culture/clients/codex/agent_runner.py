@@ -118,17 +118,11 @@ class CodexAgentRunner:
 
         if self._task:
             self._task.cancel()
-            try:
-                await self._task
-            except asyncio.CancelledError:
-                raise
+            await asyncio.gather(self._task, return_exceptions=True)
 
         if self._reader_task:
             self._reader_task.cancel()
-            try:
-                await self._reader_task
-            except asyncio.CancelledError:
-                raise
+            await asyncio.gather(self._reader_task, return_exceptions=True)
 
         if self._process:
             try:

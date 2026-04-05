@@ -118,10 +118,7 @@ class AgentDaemon:
         """Stop all daemon components."""
         if hasattr(self, "_sleep_task") and self._sleep_task:
             self._sleep_task.cancel()
-            try:
-                await self._sleep_task
-            except asyncio.CancelledError:
-                raise
+            await asyncio.gather(self._sleep_task, return_exceptions=True)
             self._sleep_task = None
 
         if self._socket_server:

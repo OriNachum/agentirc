@@ -62,10 +62,7 @@ class IRCTransport:
         self._should_run = False
         if self._read_task:
             self._read_task.cancel()
-            try:
-                await self._read_task
-            except asyncio.CancelledError:
-                raise
+            await asyncio.gather(self._read_task, return_exceptions=True)
         if self._writer:
             try:
                 await self._send_raw("QUIT :daemon shutdown")

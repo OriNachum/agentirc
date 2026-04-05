@@ -50,10 +50,7 @@ class SkillClient:
         """Close the connection and cancel the background reader."""
         if self._read_task is not None:
             self._read_task.cancel()
-            try:
-                await self._read_task
-            except asyncio.CancelledError:
-                raise
+            await asyncio.gather(self._read_task, return_exceptions=True)
             self._read_task = None
 
         if self._writer is not None:

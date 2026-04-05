@@ -84,10 +84,7 @@ class AgentRunner:
                 await asyncio.wait_for(asyncio.shield(self._task), timeout=5.0)
             except (asyncio.TimeoutError, asyncio.CancelledError):
                 self._task.cancel()
-                try:
-                    await self._task
-                except asyncio.CancelledError:
-                    raise
+                await asyncio.gather(self._task, return_exceptions=True)
         self._task = None
 
     def is_running(self) -> bool:

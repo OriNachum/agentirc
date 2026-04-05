@@ -141,24 +141,15 @@ class ACPAgentRunner:
 
         if self._task:
             self._task.cancel()
-            try:
-                await self._task
-            except asyncio.CancelledError:
-                raise
+            await asyncio.gather(self._task, return_exceptions=True)
 
         if self._reader_task:
             self._reader_task.cancel()
-            try:
-                await self._reader_task
-            except asyncio.CancelledError:
-                raise
+            await asyncio.gather(self._reader_task, return_exceptions=True)
 
         if self._stderr_task:
             self._stderr_task.cancel()
-            try:
-                await self._stderr_task
-            except asyncio.CancelledError:
-                raise
+            await asyncio.gather(self._stderr_task, return_exceptions=True)
 
         if self._process:
             try:
