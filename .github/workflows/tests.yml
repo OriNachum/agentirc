@@ -19,7 +19,7 @@ jobs:
 
       - run: uv sync
 
-      - run: uv run pytest -v
+      - run: uv run pytest -n auto -v
 
   version-check:
     runs-on: ubuntu-latest
