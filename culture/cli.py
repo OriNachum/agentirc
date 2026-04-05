@@ -622,9 +622,8 @@ def _cmd_init(args: argparse.Namespace) -> None:
 # -----------------------------------------------------------------------
 
 
-def _cmd_start(args: argparse.Namespace) -> None:
-    config = load_config(args.config)
-
+def _resolve_agents_to_start(config, args) -> list:
+    """Return the list of agents to start, or exit with an error message."""
     if args.all:
         agents = config.agents
     elif args.nick:
@@ -653,11 +652,13 @@ def _cmd_start(args: argparse.Namespace) -> None:
         print("No agents configured", file=sys.stderr)
         sys.exit(1)
 
-    # Best-effort check that the IRC server is reachable before starting agent(s)
+    return agents
+
+
+def _probe_server_connection(host: str, port: int, server_name: str) -> None:
+    """Check that the IRC server is reachable; exit with an error message if not."""
     import socket as _socket
 
-    server_name = config.server.name
-    host, port = config.server.host, config.server.port
     try:
         with _socket.create_connection((host, port), timeout=2):
             pass
@@ -672,6 +673,16 @@ def _cmd_start(args: argparse.Namespace) -> None:
             file=sys.stderr,
         )
         sys.exit(1)
+
+
+def _cmd_start(args: argparse.Namespace) -> None:
+    config = load_config(args.config)
+
+    agents = _resolve_agents_to_start(config, args)
+
+    # Best-effort check that the IRC server is reachable before starting agent(s)
+    server_name = config.server.name
+    _probe_server_connection(config.server.host, config.server.port, server_name)
 
     foreground = getattr(args, "foreground", False)
 
@@ -977,53 +988,36 @@ def _agent_process_status(agent) -> tuple[str, int | None]:
     return "stopped", None
 
 
-def _cmd_status(args: argparse.Namespace) -> None:
-    config = load_config_or_default(args.config)
+def _print_agent_detail(agent, config_path: str, args: argparse.Namespace) -> None:
+    """Print detailed status for a single agent, including live IPC activity query."""
+    status, pid = _agent_process_status(agent)
+    print(agent.nick)
+    print(f"  Status:     {status}")
+    print(f"  PID:        {pid or '-'}")
 
-    if not config.agents:
-        print("No agents configured")
-        return
-
-    # Single agent detailed view
-    if args.nick:
-        agent = None
-        for a in config.agents:
-            if a.nick == args.nick:
-                agent = a
-                break
-        if not agent:
-            print(f"Agent '{args.nick}' not found in config", file=sys.stderr)
-            sys.exit(1)
-
-        status, pid = _agent_process_status(agent)
-        print(agent.nick)
-        print(f"  Status:     {status}")
-        print(f"  PID:        {pid or '-'}")
-
-        # Query IPC for activity if running — ask the agent directly
-        if status == "running":
-            resp = asyncio.run(_ipc_request(_agent_socket_path(agent.nick), "status", query=True))
-            if resp and resp.get("ok"):
-                data = resp.get("data", {})
-                print(f"  Activity:   {data.get('description', 'nothing')}")
-                print(f"  Turns:      {data.get('turn_count', 0)}")
-                print(f"  Paused:     {'yes' if data.get('paused') else 'no'}")
-            else:
-                print("  Activity:   unknown (daemon may need restart)")
+    # Query IPC for activity if running — ask the agent directly
+    if status == "running":
+        resp = asyncio.run(_ipc_request(_agent_socket_path(agent.nick), "status", query=True))
+        if resp and resp.get("ok"):
+            data = resp.get("data", {})
+            print(f"  Activity:   {data.get('description', 'nothing')}")
+            print(f"  Turns:      {data.get('turn_count', 0)}")
+            print(f"  Paused:     {'yes' if data.get('paused') else 'no'}")
         else:
-            print("  Activity:   -")
+            print("  Activity:   unknown (daemon may need restart)")
+    else:
+        print("  Activity:   -")
 
-        channels = agent.channels if isinstance(agent.channels, list) else []
-        print(f"  Directory:  {agent.directory}")
-        print(f"  Backend:    {agent.agent}")
-        print(f"  Channels:   {', '.join(channels)}")
-        print(f"  Model:      {agent.model}")
-        print(f"  Config:     {args.config}")
-        return
+    channels = agent.channels if isinstance(agent.channels, list) else []
+    print(f"  Directory:  {agent.directory}")
+    print(f"  Backend:    {agent.agent}")
+    print(f"  Channels:   {', '.join(channels)}")
+    print(f"  Model:      {agent.model}")
+    print(f"  Config:     {config_path}")
 
-    # All agents view
-    show_activity = args.full
 
+def _print_agents_overview(agents: list, show_activity: bool) -> None:
+    """Print a table of all agents with status, PID, and optionally activity."""
     if show_activity:
         print(f"{'NICK':<30} {'STATUS':<12} {'PID':<10} {'ACTIVITY'}")
         print("-" * 72)
@@ -1031,7 +1025,7 @@ def _cmd_status(args: argparse.Namespace) -> None:
         print(f"{'NICK':<30} {'STATUS':<12} {'PID':<10}")
         print("-" * 52)
 
-    for agent in config.agents:
+    for agent in agents:
         status, pid = _agent_process_status(agent)
         activity = "-"
 
@@ -1046,7 +1040,9 @@ def _cmd_status(args: argparse.Namespace) -> None:
         else:
             print(f"{agent.nick:<30} {status:<12} {str(pid or '-'):<10}")
 
-    # Show bots
+
+def _print_bot_listing() -> None:
+    """Print a table of configured bots (if any exist)."""
     from culture.bots.config import BOTS_DIR, load_bot_config
 
     if BOTS_DIR.is_dir():
@@ -1065,6 +1061,34 @@ def _cmd_status(args: argparse.Namespace) -> None:
             for bc in bot_configs:
                 channels = ", ".join(bc.channels) if bc.channels else "-"
                 print(f"{bc.name:<30} {bc.trigger_type:<12} {channels}")
+
+
+def _cmd_status(args: argparse.Namespace) -> None:
+    config = load_config_or_default(args.config)
+
+    if not config.agents:
+        print("No agents configured")
+        return
+
+    # Single agent detailed view
+    if args.nick:
+        agent = None
+        for a in config.agents:
+            if a.nick == args.nick:
+                agent = a
+                break
+        if not agent:
+            print(f"Agent '{args.nick}' not found in config", file=sys.stderr)
+            sys.exit(1)
+
+        _print_agent_detail(agent, args.config, args)
+        return
+
+    # All agents view
+    _print_agents_overview(config.agents, args.full)
+
+    # Show bots
+    _print_bot_listing()
 
 
 # -----------------------------------------------------------------------
@@ -1454,39 +1478,10 @@ def _build_server_start_cmd(mesh, culture_bin: str, mesh_config_path: str) -> li
 # -----------------------------------------------------------------------
 
 
-def _cmd_setup(args: argparse.Namespace) -> None:
+def _store_mesh_credentials(mesh) -> None:
+    """Prompt for link passwords and store them in the OS keyring (never in files)."""
     import getpass
 
-    from culture.mesh_config import load_mesh_config
-    from culture.persistence import install_service, list_services, uninstall_service
-
-    try:
-        mesh = load_mesh_config(args.config)
-    except FileNotFoundError:
-        print(f"Mesh config not found: {args.config}", file=sys.stderr)
-        print("Create it manually or ask your AI agent to generate it.", file=sys.stderr)
-        sys.exit(1)
-
-    server_name = mesh.server.name
-
-    if args.uninstall:
-        print("Uninstalling culture services...")
-        # Only remove services for this node (not other mesh nodes)
-        expected = {f"culture-server-{server_name}"}
-        for agent in mesh.agents:
-            expected.add(f"culture-agent-{server_name}-{agent.nick}")
-        for svc in list_services():
-            if svc in expected:
-                print(f"  Removing {svc}")
-                uninstall_service(svc)
-        _server_stop_by_name(server_name)
-        for agent in mesh.agents:
-            full_nick = f"{server_name}-{agent.nick}"
-            _stop_agent(full_nick)
-        print("Done.")
-        return
-
-    # Prompt for link passwords and store in OS keyring (never in files)
     from culture.credentials import lookup_credential, store_credential
 
     for link in mesh.server.links:
@@ -1505,7 +1500,9 @@ def _cmd_setup(args: argparse.Namespace) -> None:
                     file=sys.stderr,
                 )
 
-    # Generate agents.yaml for each workdir
+
+def _generate_agent_configs(mesh, server_name: str) -> None:
+    """Generate agents.yaml for each agent workdir defined in the mesh config."""
     from culture.clients.claude.config import AgentConfig as BaseAgentConfig
     from culture.clients.claude.config import (
         DaemonConfig,
@@ -1542,9 +1539,12 @@ def _cmd_setup(args: argparse.Namespace) -> None:
         save_config(config_path, daemon_config)
         print(f"  Wrote {config_path}")
 
-    # Install auto-start services
-    culture_bin = shutil.which("culture") or "culture"
-    server_cmd = _build_server_start_cmd(mesh, culture_bin, args.config)
+
+def _install_mesh_services(mesh, server_name: str, culture_bin: str, config_path: str) -> None:
+    """Install auto-start service entries for the server and all agents."""
+    from culture.persistence import install_service
+
+    server_cmd = _build_server_start_cmd(mesh, culture_bin, config_path)
     svc_name = f"culture-server-{server_name}"
     path = install_service(svc_name, server_cmd, f"culture server {server_name}")
     print(f"  Installed {svc_name} → {path}")
@@ -1552,11 +1552,49 @@ def _cmd_setup(args: argparse.Namespace) -> None:
     for agent in mesh.agents:
         full_nick = f"{server_name}-{agent.nick}"
         workdir = os.path.expanduser(agent.workdir)
-        config_path = os.path.join(workdir, ".culture", "agents.yaml")
-        agent_cmd = [culture_bin, "start", full_nick, "--foreground", "--config", config_path]
+        agent_config_path = os.path.join(workdir, ".culture", "agents.yaml")
+        agent_cmd = [culture_bin, "start", full_nick, "--foreground", "--config", agent_config_path]
         agent_svc = f"culture-agent-{full_nick}"
         path = install_service(agent_svc, agent_cmd, f"culture agent {full_nick}")
         print(f"  Installed {agent_svc} → {path}")
+
+
+def _cmd_setup(args: argparse.Namespace) -> None:
+    from culture.mesh_config import load_mesh_config
+    from culture.persistence import list_services, uninstall_service
+
+    try:
+        mesh = load_mesh_config(args.config)
+    except FileNotFoundError:
+        print(f"Mesh config not found: {args.config}", file=sys.stderr)
+        print("Create it manually or ask your AI agent to generate it.", file=sys.stderr)
+        sys.exit(1)
+
+    server_name = mesh.server.name
+
+    if args.uninstall:
+        print("Uninstalling culture services...")
+        # Only remove services for this node (not other mesh nodes)
+        expected = {f"culture-server-{server_name}"}
+        for agent in mesh.agents:
+            expected.add(f"culture-agent-{server_name}-{agent.nick}")
+        for svc in list_services():
+            if svc in expected:
+                print(f"  Removing {svc}")
+                uninstall_service(svc)
+        _server_stop_by_name(server_name)
+        for agent in mesh.agents:
+            full_nick = f"{server_name}-{agent.nick}"
+            _stop_agent(full_nick)
+        print("Done.")
+        return
+
+    _store_mesh_credentials(mesh)
+
+    _generate_agent_configs(mesh, server_name)
+
+    culture_bin = shutil.which("culture") or "culture"
+    _install_mesh_services(mesh, server_name, culture_bin, args.config)
 
     print(f"\nSetup complete for mesh node '{server_name}'.")
     print("Services installed. Start with your service manager or reboot.")
@@ -1597,65 +1635,67 @@ def _server_stop_by_name(name: str) -> None:
 # -----------------------------------------------------------------------
 
 
-def _cmd_update(args: argparse.Namespace) -> None:
-    from culture.mesh_config import load_mesh_config
+def _upgrade_culture_package(args: argparse.Namespace) -> bool:
+    """Upgrade the culture-cli package via uv or pip, then re-exec with --skip-upgrade.
 
-    try:
-        mesh = load_mesh_config(args.config)
-    except FileNotFoundError:
-        print(f"Mesh config not found: {args.config}", file=sys.stderr)
-        sys.exit(1)
+    Returns True if the caller should continue (i.e. ``--skip-upgrade`` was set or
+    dry-run printed its messages). Never returns False — either re-execs, exits, or
+    returns True to signal the caller to proceed with the restart phase.
+    """
+    if args.skip_upgrade:
+        return True
 
-    server_name = mesh.server.name
+    if args.dry_run:
+        print("[dry-run] Would run: uv tool upgrade culture-cli")
+        print("[dry-run] Would re-exec with --skip-upgrade")
+        return False
 
-    if not args.skip_upgrade:
-        if args.dry_run:
-            print("[dry-run] Would run: uv tool upgrade culture-cli")
-            print("[dry-run] Would re-exec with --skip-upgrade")
-            return
-
-        # Upgrade the package
-        uv = shutil.which("uv")
-        if uv:
-            print("Upgrading via uv...")
+    # Upgrade the package
+    uv = shutil.which("uv")
+    if uv:
+        print("Upgrading via uv...")
+        result = subprocess.run(
+            [uv, "tool", "upgrade", "culture-cli"],
+            capture_output=True,
+            text=True,
+        )
+        print(result.stdout.strip() if result.stdout else "")
+        if result.returncode != 0:
+            print(f"uv upgrade failed: {result.stderr}", file=sys.stderr)
+            sys.exit(1)
+    else:
+        pip = shutil.which("pip") or shutil.which("pip3")
+        if pip:
+            print("Upgrading via pip...")
             result = subprocess.run(
-                [uv, "tool", "upgrade", "culture-cli"],
+                [pip, "install", "--upgrade", "culture-cli"],
                 capture_output=True,
                 text=True,
             )
-            print(result.stdout.strip() if result.stdout else "")
             if result.returncode != 0:
-                print(f"uv upgrade failed: {result.stderr}", file=sys.stderr)
+                print(f"pip upgrade failed: {result.stderr}", file=sys.stderr)
                 sys.exit(1)
         else:
-            pip = shutil.which("pip") or shutil.which("pip3")
-            if pip:
-                print("Upgrading via pip...")
-                result = subprocess.run(
-                    [pip, "install", "--upgrade", "culture-cli"],
-                    capture_output=True,
-                    text=True,
-                )
-                if result.returncode != 0:
-                    print(f"pip upgrade failed: {result.stderr}", file=sys.stderr)
-                    sys.exit(1)
-            else:
-                print("Neither uv nor pip found", file=sys.stderr)
-                sys.exit(1)
+            print("Neither uv nor pip found", file=sys.stderr)
+            sys.exit(1)
 
-        # Re-exec with new binary so restart uses new code
-        culture_bin = shutil.which("culture") or "culture"
-        reexec_args = [culture_bin, "update", "--skip-upgrade", "--config", args.config]
-        print("Re-executing with updated code...")
-        if sys.platform == "win32":
-            sys.exit(subprocess.run(reexec_args).returncode)
-        else:
-            os.execvp(culture_bin, reexec_args)
+    # Re-exec with new binary so restart uses new code
+    culture_bin = shutil.which("culture") or "culture"
+    reexec_args = [culture_bin, "update", "--skip-upgrade", "--config", args.config]
+    print("Re-executing with updated code...")
+    if sys.platform == "win32":
+        sys.exit(subprocess.run(reexec_args).returncode)
+    else:
+        os.execvp(culture_bin, reexec_args)
 
-    # --skip-upgrade path: restart everything
+
+def _restart_mesh_services(
+    mesh, server_name: str, culture_bin: str, config_path: str, dry_run: bool
+) -> None:
+    """Stop agents and server, regenerate service entries, then restart everything."""
     print(f"Restarting mesh node '{server_name}'...")
 
-    if args.dry_run:
+    if dry_run:
         for agent in mesh.agents:
             print(f"[dry-run] Would stop agent {server_name}-{agent.nick}")
         print(f"[dry-run] Would stop server {server_name}")
@@ -1678,15 +1718,14 @@ def _cmd_update(args: argparse.Namespace) -> None:
     # Regenerate auto-start entries
     from culture.persistence import install_service
 
-    culture_bin = shutil.which("culture") or "culture"
-    server_cmd = _build_server_start_cmd(mesh, culture_bin, args.config)
+    server_cmd = _build_server_start_cmd(mesh, culture_bin, config_path)
     install_service(f"culture-server-{server_name}", server_cmd, f"culture server {server_name}")
 
     for agent in mesh.agents:
         full_nick = f"{server_name}-{agent.nick}"
         workdir = os.path.expanduser(agent.workdir)
-        config_path = os.path.join(workdir, ".culture", "agents.yaml")
-        agent_cmd = [culture_bin, "start", full_nick, "--foreground", "--config", config_path]
+        agent_config_path = os.path.join(workdir, ".culture", "agents.yaml")
+        agent_cmd = [culture_bin, "start", full_nick, "--foreground", "--config", agent_config_path]
         install_service(f"culture-agent-{full_nick}", agent_cmd, f"culture agent {full_nick}")
 
     # Restart services via platform service manager
@@ -1715,7 +1754,7 @@ def _cmd_update(args: argparse.Namespace) -> None:
                     "--port",
                     str(mesh.server.port),
                     "--mesh-config",
-                    args.config,
+                    config_path,
                 ],
                 check=False,
             )
@@ -1737,13 +1776,32 @@ def _cmd_update(args: argparse.Namespace) -> None:
         if not restart_service(agent_svc):
             # Fallback: start via CLI
             workdir = os.path.expanduser(agent.workdir)
-            config_path = os.path.join(workdir, ".culture", "agents.yaml")
+            agent_config_path = os.path.join(workdir, ".culture", "agents.yaml")
             subprocess.run(
-                [culture_bin, "start", full_nick, "--config", config_path],
+                [culture_bin, "start", full_nick, "--config", agent_config_path],
                 check=False,
             )
 
     print("\nUpdate complete. All services restarted.")
+
+
+def _cmd_update(args: argparse.Namespace) -> None:
+    from culture.mesh_config import load_mesh_config
+
+    try:
+        mesh = load_mesh_config(args.config)
+    except FileNotFoundError:
+        print(f"Mesh config not found: {args.config}", file=sys.stderr)
+        sys.exit(1)
+
+    server_name = mesh.server.name
+
+    if not _upgrade_culture_package(args):
+        return
+
+    # --skip-upgrade path: restart everything
+    culture_bin = shutil.which("culture") or "culture"
+    _restart_mesh_services(mesh, server_name, culture_bin, args.config, args.dry_run)
 
 
 # -----------------------------------------------------------------------
