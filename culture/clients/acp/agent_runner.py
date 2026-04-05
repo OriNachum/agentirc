@@ -299,41 +299,49 @@ class ACPAgentRunner:
         params = msg.get("params", {})
 
         if method == "session/update":
-            # ACP wraps updates in params.update (not flat in params)
-            update = params.get("update", params)
-            update_type = update.get("sessionUpdate", "")
-
-            if update_type in ("agent_message_chunk", "agent_thought_chunk"):
-                # Accumulate streaming text (both message and thought chunks)
-                self._busy = True
-                content = update.get("content", {})
-                if update_type == "agent_message_chunk" and content.get("type") == "text":
-                    self._accumulated_text += content.get("text", "")
-
-            # Check for stopReason — indicates turn is complete
-            if "stopReason" in update:
-                self._busy = False
-                if self.on_message and self._accumulated_text:
-                    msg_dict = {
-                        "type": "assistant",
-                        "model": self.model,
-                        "content": [{"type": "text", "text": self._accumulated_text}],
-                    }
-                    await self.on_message(msg_dict)
-                self._accumulated_text = ""
+            await self._handle_session_update(params)
 
         elif method == "session/request_permission":
-            # Auto-approve all permission requests (file changes, commands, etc.)
-            req_id = msg.get("id")
-            if req_id is not None:
-                resp = {"jsonrpc": "2.0", "id": req_id, "result": {"approved": True}}
-                if self._process and self._process.stdin:
-                    line = json.dumps(resp) + "\n"
-                    self._process.stdin.write(line.encode())
-                    await self._process.stdin.drain()
+            await self._auto_approve(msg)
 
         elif method == "error":
             logger.error("ACP error (%s): %s", self.acp_command[0], params)
+
+    async def _handle_session_update(self, params: dict) -> None:
+        """Process a session/update notification."""
+        update = params.get("update", params)
+        update_type = update.get("sessionUpdate", "")
+
+        if update_type in ("agent_message_chunk", "agent_thought_chunk"):
+            self._busy = True
+            content = update.get("content", {})
+            if update_type == "agent_message_chunk" and content.get("type") == "text":
+                self._accumulated_text += content.get("text", "")
+
+        if "stopReason" in update:
+            self._busy = False
+            await self._flush_accumulated_text()
+
+    async def _flush_accumulated_text(self) -> None:
+        """Fire on_message with any accumulated text and reset the buffer."""
+        if self.on_message and self._accumulated_text:
+            msg_dict = {
+                "type": "assistant",
+                "model": self.model,
+                "content": [{"type": "text", "text": self._accumulated_text}],
+            }
+            await self.on_message(msg_dict)
+        self._accumulated_text = ""
+
+    async def _auto_approve(self, msg: dict) -> None:
+        """Auto-approve a permission request from the ACP process."""
+        req_id = msg.get("id")
+        if req_id is not None:
+            resp = {"jsonrpc": "2.0", "id": req_id, "result": {"approved": True}}
+            if self._process and self._process.stdin:
+                line = json.dumps(resp) + "\n"
+                self._process.stdin.write(line.encode())
+                await self._process.stdin.drain()
 
     async def _prompt_loop(self) -> None:
         """Process queued prompts one at a time."""
@@ -354,21 +362,11 @@ class ACPAgentRunner:
                         timeout=120,
                     )
 
-                    # Check if response itself signals turn completion
                     result = resp.get("result", {})
                     if "stopReason" in result:
-                        # Turn completed — flush any accumulated text
-                        if self.on_message and self._accumulated_text:
-                            msg_dict = {
-                                "type": "assistant",
-                                "model": self.model,
-                                "content": [{"type": "text", "text": self._accumulated_text}],
-                            }
-                            await self.on_message(msg_dict)
-                        self._accumulated_text = ""
+                        await self._flush_accumulated_text()
                         self._busy = False
 
-                    # Wait for turn to complete (via notifications)
                     while self._busy and self._running:
                         await asyncio.sleep(0.1)
 

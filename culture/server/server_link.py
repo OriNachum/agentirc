@@ -519,6 +519,11 @@ class ServerLink:
             return
 
         channel = self.server.get_or_create_channel(channel_name)
+        self._merge_room_metadata(channel, meta)
+
+    @staticmethod
+    def _merge_room_metadata(channel, meta: dict) -> None:
+        """Apply metadata fields from a peer to a local channel object."""
         channel.room_id = meta.get("room_id") or channel.room_id
         channel.creator = meta.get("creator") or channel.creator
         channel.owner = meta.get("owner") or channel.owner

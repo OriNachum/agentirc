@@ -525,6 +525,59 @@ def _server_status(args: argparse.Namespace) -> None:
 # -----------------------------------------------------------------------
 
 
+def _create_agent_config(args: argparse.Namespace, full_nick: str) -> "AgentConfig":
+    """Build a backend-specific AgentConfig from CLI args."""
+    if args.agent == "codex":
+        from culture.clients.codex.config import AgentConfig as CodexAgentConfig
+
+        return CodexAgentConfig(
+            nick=full_nick,
+            agent="codex",
+            directory=os.getcwd(),
+            channels=["#general"],
+        )
+    if args.agent == "copilot":
+        from culture.clients.copilot.config import AgentConfig as CopilotAgentConfig
+
+        return CopilotAgentConfig(
+            nick=full_nick,
+            agent="copilot",
+            directory=os.getcwd(),
+            channels=["#general"],
+        )
+    if args.agent == "acp":
+        import json as _json
+
+        from culture.clients.acp.config import AgentConfig as ACPAgentConfig
+
+        acp_cmd = ["opencode", "acp"]
+        if args.acp_command:
+            try:
+                acp_cmd = _json.loads(args.acp_command)
+            except _json.JSONDecodeError:
+                acp_cmd = args.acp_command.split()
+        if (
+            not isinstance(acp_cmd, list)
+            or not acp_cmd
+            or not all(isinstance(s, str) for s in acp_cmd)
+        ):
+            print("Error: --acp-command must be a non-empty list of strings", file=sys.stderr)
+            sys.exit(1)
+        return ACPAgentConfig(
+            nick=full_nick,
+            agent="acp",
+            acp_command=acp_cmd,
+            directory=os.getcwd(),
+            channels=["#general"],
+        )
+    return AgentConfig(
+        nick=full_nick,
+        agent=args.agent,
+        directory=os.getcwd(),
+        channels=["#general"],
+    )
+
+
 def _cmd_init(args: argparse.Namespace) -> None:
     config = load_config_or_default(args.config)
 
@@ -554,58 +607,7 @@ def _cmd_init(args: argparse.Namespace) -> None:
             print(f"Start with: culture start {full_nick}", file=sys.stderr)
             sys.exit(1)
 
-    # Use backend-specific config for correct defaults
-    if args.agent == "codex":
-        from culture.clients.codex.config import AgentConfig as CodexAgentConfig
-
-        agent = CodexAgentConfig(
-            nick=full_nick,
-            agent="codex",
-            directory=os.getcwd(),
-            channels=["#general"],
-        )
-    elif args.agent == "copilot":
-        from culture.clients.copilot.config import AgentConfig as CopilotAgentConfig
-
-        agent = CopilotAgentConfig(
-            nick=full_nick,
-            agent="copilot",
-            directory=os.getcwd(),
-            channels=["#general"],
-        )
-    elif args.agent == "acp":
-        import json as _json
-
-        from culture.clients.acp.config import AgentConfig as ACPAgentConfig
-
-        acp_cmd = ["opencode", "acp"]
-        if args.acp_command:
-            try:
-                acp_cmd = _json.loads(args.acp_command)
-            except _json.JSONDecodeError:
-                # Treat as a simple command name (e.g. "cline --acp")
-                acp_cmd = args.acp_command.split()
-        if (
-            not isinstance(acp_cmd, list)
-            or not acp_cmd
-            or not all(isinstance(s, str) for s in acp_cmd)
-        ):
-            print("Error: --acp-command must be a non-empty list of strings", file=sys.stderr)
-            sys.exit(1)
-        agent = ACPAgentConfig(
-            nick=full_nick,
-            agent="acp",
-            acp_command=acp_cmd,
-            directory=os.getcwd(),
-            channels=["#general"],
-        )
-    else:
-        agent = AgentConfig(
-            nick=full_nick,
-            agent=args.agent,
-            directory=os.getcwd(),
-            channels=["#general"],
-        )
+    agent = _create_agent_config(args, full_nick)
 
     add_agent_to_config(args.config, agent, server_name=server_name)
 
@@ -853,35 +855,46 @@ def _cmd_stop(args: argparse.Namespace) -> None:
 
 def _stop_agent(nick: str) -> None:
     """Stop a single agent by trying IPC shutdown first, then PID file."""
-    # Try Unix socket IPC shutdown
     socket_path = os.path.join(
         os.environ.get("XDG_RUNTIME_DIR", "/tmp"),
         f"culture-{nick}.sock",
     )
 
-    if os.path.exists(socket_path):
-        try:
-            success = asyncio.run(_ipc_shutdown(socket_path))
-            if success:
-                print(f"Agent '{nick}' shutdown requested via IPC")
-                # Wait for process to exit
-                pid_name = f"agent-{nick}"
-                pid = read_pid(pid_name)
-                if pid:
-                    for _ in range(50):
-                        if not is_process_alive(pid):
-                            remove_pid(pid_name)
-                            print(f"Agent '{nick}' stopped")
-                            return
-                        time.sleep(0.1)
-                    # If still alive after 5s, fall through to SIGTERM
-                else:
-                    print(f"Agent '{nick}' stopped")
-                    return
-        except Exception:
-            pass  # Fall through to PID-based stop
+    if _try_ipc_shutdown(nick, socket_path):
+        return
 
-    # Fall back to PID file
+    _try_pid_shutdown(nick)
+
+
+def _try_ipc_shutdown(nick: str, socket_path: str) -> bool:
+    """Attempt graceful IPC shutdown. Return True if the agent stopped."""
+    if not os.path.exists(socket_path):
+        return False
+    try:
+        success = asyncio.run(_ipc_shutdown(socket_path))
+        if not success:
+            return False
+    except Exception:
+        return False
+
+    print(f"Agent '{nick}' shutdown requested via IPC")
+    pid_name = f"agent-{nick}"
+    pid = read_pid(pid_name)
+    if not pid:
+        print(f"Agent '{nick}' stopped")
+        return True
+    for _ in range(50):
+        if not is_process_alive(pid):
+            remove_pid(pid_name)
+            print(f"Agent '{nick}' stopped")
+            return True
+        time.sleep(0.1)
+    # Still alive after 5s — fall through to PID-based stop
+    return False
+
+
+def _try_pid_shutdown(nick: str) -> None:
+    """Stop an agent via PID file with SIGTERM/SIGKILL fallback."""
     pid_name = f"agent-{nick}"
     pid = read_pid(pid_name)
 
@@ -907,16 +920,14 @@ def _stop_agent(nick: str) -> None:
     # Force kill
     if sys.platform == "win32":
         print(f"Agent '{nick}' did not stop gracefully, terminating")
-        try:
-            os.kill(pid, signal.SIGTERM)
-        except ProcessLookupError:
-            pass
+        sig = signal.SIGTERM
     else:
         print(f"Agent '{nick}' did not stop gracefully, sending SIGKILL")
-        try:
-            os.kill(pid, signal.SIGKILL)
-        except ProcessLookupError:
-            pass
+        sig = signal.SIGKILL
+    try:
+        os.kill(pid, sig)
+    except ProcessLookupError:
+        pass
     remove_pid(pid_name)
     print(f"Agent '{nick}' killed")
 

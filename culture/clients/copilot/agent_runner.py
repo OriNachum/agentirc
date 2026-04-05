@@ -146,14 +146,7 @@ class CopilotAgentRunner:
 
                 try:
                     response = await self._session.send_and_wait(text, timeout=120.0)
-
-                    # Extract text from SDK response
-                    content_text = ""
-                    if response is not None:
-                        if hasattr(response, "data") and hasattr(response.data, "content"):
-                            content_text = response.data.content or ""
-                        elif isinstance(response, dict):
-                            content_text = response.get("data", {}).get("content", "")
+                    content_text = self._extract_response_text(response)
 
                     if content_text and self.on_message:
                         msg_dict = {
@@ -176,3 +169,14 @@ class CopilotAgentRunner:
 
         if not self._stopping and self.on_exit:
             await self.on_exit(0)
+
+    @staticmethod
+    def _extract_response_text(response) -> str:
+        """Extract text content from a Copilot SDK response."""
+        if response is None:
+            return ""
+        if hasattr(response, "data") and hasattr(response.data, "content"):
+            return response.data.content or ""
+        if isinstance(response, dict):
+            return response.get("data", {}).get("content", "")
+        return ""

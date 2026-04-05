@@ -193,47 +193,48 @@ class IRCd:
             while True:
                 await asyncio.sleep(state["delay"])
 
-                # If peer already reconnected, stop retrying
                 if peer_name in self.links:
                     break
 
-                try:
-                    link = await self.connect_to_peer(
-                        link_config.host,
-                        link_config.port,
-                        link_config.password,
-                        trust=link_config.trust,
-                    )
-                    # Wait for handshake to complete
-                    for _ in range(50):
-                        if peer_name in self.links:
-                            break
-                        await asyncio.sleep(0.1)
+                if await self._attempt_single_reconnect(peer_name, link_config, logger):
+                    break
 
-                    if peer_name in self.links:
-                        logger.info("Reconnected to peer %s", peer_name)
-                        break
-                    else:
-                        logger.warning("Handshake with %s did not complete, retrying", peer_name)
-                        # Close the stale link to avoid leaked connections
-                        try:
-                            link.writer.close()
-                        except Exception:
-                            pass
-                except Exception:
-                    logger.debug(
-                        "Retry connect to %s failed, next in %.0fs",
-                        peer_name,
-                        min(state["delay"] * 2, 120),
-                    )
-
-                # Exponential backoff, cap at 120s
                 state["delay"] = min(state["delay"] * 2, 120)
         except asyncio.CancelledError:
             raise
         finally:
-            # Cleanup retry state
             self._link_retry_state.pop(peer_name, None)
+
+    async def _attempt_single_reconnect(self, peer_name: str, link_config, logger) -> bool:
+        """Try one reconnection attempt. Return True if the peer is now linked."""
+        try:
+            link = await self.connect_to_peer(
+                link_config.host,
+                link_config.port,
+                link_config.password,
+                trust=link_config.trust,
+            )
+            for _ in range(50):
+                if peer_name in self.links:
+                    break
+                await asyncio.sleep(0.1)
+
+            if peer_name in self.links:
+                logger.info("Reconnected to peer %s", peer_name)
+                return True
+
+            logger.warning("Handshake with %s did not complete, retrying", peer_name)
+            try:
+                link.writer.close()
+            except Exception:
+                pass
+        except Exception:
+            logger.debug(
+                "Retry connect to %s failed, next in %.0fs",
+                peer_name,
+                min(self._link_retry_state.get(peer_name, {}).get("delay", 5) * 2, 120),
+            )
+        return False
 
     def cancel_link_retry(self, peer_name: str) -> None:
         """Cancel any pending retry task for a peer."""

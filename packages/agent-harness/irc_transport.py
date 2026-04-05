@@ -23,6 +23,8 @@ class IRCTransport:
         channels: list[str],
         buffer: MessageBuffer,
         on_mention: Callable[[str, str, str], None] | None = None,
+        tags: list[str] | None = None,
+        on_roominvite: Callable[[str, str], None] | None = None,
     ):
         self.host = host
         self.port = port
@@ -31,6 +33,8 @@ class IRCTransport:
         self.channels = list(channels)
         self.buffer = buffer
         self.on_mention = on_mention
+        self.tags = tags or []
+        self.on_roominvite = on_roominvite
         self.connected = False
         self._reader: asyncio.StreamReader | None = None
         self._writer: asyncio.StreamWriter | None = None
@@ -38,6 +42,13 @@ class IRCTransport:
         self._reconnecting = False
         self._should_run = False
         self._background_tasks: set[asyncio.Task] = set()
+        self._cmd_handlers: dict[str, Callable] = {
+            "PING": self._on_ping,
+            "001": self._on_welcome,
+            "PRIVMSG": self._on_privmsg,
+            "NOTICE": self._on_notice,
+            "ROOMINVITE": self._on_roominvite,
+        }
 
     async def connect(self) -> None:
         self._should_run = True
@@ -149,28 +160,50 @@ class IRCTransport:
                 delay = min(delay * 2, 60)
 
     async def _handle(self, msg: Message) -> None:
-        if msg.command == "PING":
-            token = msg.params[0] if msg.params else ""
-            await self._send_raw(f"PONG :{token}")
-        elif msg.command == "001":
-            self.connected = True
-            for channel in self.channels:
-                await self._send_raw(f"JOIN {channel}")
-        elif msg.command == "PRIVMSG" and len(msg.params) >= 2:
-            target = msg.params[0]
-            text = msg.params[1]
-            sender = msg.prefix.split("!")[0] if msg.prefix else "unknown"
-            if sender == self.nick:
-                return
-            if target.startswith("#"):
-                self.buffer.add(target, sender, text)
-            else:
-                self.buffer.add(f"DM:{sender}", sender, text)
-            if self.on_mention and f"@{self.nick}" in text:
-                self.on_mention(target, sender, text)
-        elif msg.command == "NOTICE" and len(msg.params) >= 2:
-            target = msg.params[0]
-            text = msg.params[1]
-            sender = msg.prefix.split("!")[0] if msg.prefix else "server"
-            if target.startswith("#"):
-                self.buffer.add(target, sender, text)
+        handler = self._cmd_handlers.get(msg.command)
+        if handler:
+            await handler(msg)
+
+    async def _on_ping(self, msg: Message) -> None:
+        token = msg.params[0] if msg.params else ""
+        await self._send_raw(f"PONG :{token}")
+
+    async def _on_welcome(self, msg: Message) -> None:
+        self.connected = True
+        for channel in self.channels:
+            await self._send_raw(f"JOIN {channel}")
+        if self.tags:
+            tags_str = ",".join(self.tags)
+            await self._send_raw(f"TAGS {self.nick} {tags_str}")
+
+    async def _on_privmsg(self, msg: Message) -> None:
+        if len(msg.params) < 2:
+            return
+        target = msg.params[0]
+        text = msg.params[1]
+        sender = msg.prefix.split("!")[0] if msg.prefix else "unknown"
+        if sender == self.nick:
+            return
+        if target.startswith("#"):
+            self.buffer.add(target, sender, text)
+        else:
+            self.buffer.add(f"DM:{sender}", sender, text)
+        if self.on_mention and f"@{self.nick}" in text:
+            self.on_mention(target, sender, text)
+
+    async def _on_notice(self, msg: Message) -> None:
+        if len(msg.params) < 2:
+            return
+        target = msg.params[0]
+        text = msg.params[1]
+        sender = msg.prefix.split("!")[0] if msg.prefix else "server"
+        if target.startswith("#"):
+            self.buffer.add(target, sender, text)
+
+    async def _on_roominvite(self, msg: Message) -> None:
+        if len(msg.params) < 3:
+            return
+        channel = msg.params[0]
+        meta_text = msg.params[2]
+        if self.on_roominvite:
+            self.on_roominvite(channel, meta_text)

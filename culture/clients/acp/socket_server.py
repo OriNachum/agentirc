@@ -61,7 +61,14 @@ class SocketServer:
         self, reader: asyncio.StreamReader, writer: asyncio.StreamWriter
     ) -> None:
         self._clients.append(writer)
-        # Drain any queued whispers that arrived before this client connected.
+        try:
+            await self._drain_queued_whispers(writer)
+            await self._process_client_messages(reader, writer)
+        finally:
+            self._cleanup_client(writer)
+
+    async def _drain_queued_whispers(self, writer: asyncio.StreamWriter) -> None:
+        """Deliver any whispers queued before this client connected."""
         while not self._whisper_queue.empty():
             try:
                 data = self._whisper_queue.get_nowait()
@@ -71,6 +78,11 @@ class SocketServer:
                 break
             except (ConnectionError, BrokenPipeError, OSError):
                 break
+
+    async def _process_client_messages(
+        self, reader: asyncio.StreamReader, writer: asyncio.StreamWriter
+    ) -> None:
+        """Read and dispatch IPC messages until the client disconnects."""
         try:
             while True:
                 line = await reader.readline()
@@ -85,20 +97,26 @@ class SocketServer:
                     await writer.drain()
                 except Exception as exc:
                     logger.exception("Handler error for message: %s", msg)
-                    try:
-                        request_id = msg.get("id") if isinstance(msg, dict) else None
-                        err_resp = make_response(request_id or "", ok=False, error=str(exc))
-                        writer.write(encode_message(err_resp))
-                        await writer.drain()
-                    except (ConnectionError, BrokenPipeError, OSError):
+                    if not await self._send_error_response(msg, exc, writer):
                         break
         except (ConnectionError, asyncio.IncompleteReadError):
             pass
-        finally:
-            if writer in self._clients:
-                self._clients.remove(writer)
-            writer.close()
-            try:
-                await writer.wait_closed()
-            except (ConnectionError, BrokenPipeError, OSError):
-                pass
+
+    async def _send_error_response(
+        self, msg: dict, exc: Exception, writer: asyncio.StreamWriter
+    ) -> bool:
+        """Send an error response to the client. Return False if the connection broke."""
+        try:
+            request_id = msg.get("id") if isinstance(msg, dict) else None
+            err_resp = make_response(request_id or "", ok=False, error=str(exc))
+            writer.write(encode_message(err_resp))
+            await writer.drain()
+            return True
+        except (ConnectionError, BrokenPipeError, OSError):
+            return False
+
+    def _cleanup_client(self, writer: asyncio.StreamWriter) -> None:
+        """Remove client from the active list and close the connection."""
+        if writer in self._clients:
+            self._clients.remove(writer)
+        writer.close()

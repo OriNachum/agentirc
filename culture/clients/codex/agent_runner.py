@@ -243,6 +243,14 @@ class CodexAgentRunner:
             if not self._stopping and self.on_exit:
                 await self.on_exit(returncode)
 
+    _APPROVAL_METHODS = frozenset(
+        {
+            "exec_approval_request",
+            "file_change_approval_request",
+            "patch_apply_approval_request",
+        }
+    )
+
     async def _handle_notification(self, msg: dict) -> None:
         """Handle server notifications."""
         method = msg.get("method", "")
@@ -253,54 +261,39 @@ class CodexAgentRunner:
             self._accumulated_text = ""
 
         elif method == "item/agentMessage/delta":
-            # Accumulate streaming text
             delta = params.get("delta", "")
             self._accumulated_text += delta
 
         elif method == "turn/completed":
             self._busy = False
-            # Fire on_message with accumulated text
-            if self.on_message and self._accumulated_text:
-                msg_dict = {
-                    "type": "assistant",
-                    "model": self.model,
-                    "content": [{"type": "text", "text": self._accumulated_text}],
-                }
-                await self.on_message(msg_dict)
-            self._accumulated_text = ""
+            await self._flush_accumulated_text()
 
-        elif method == "exec_approval_request":
-            # Auto-approve command execution
-            req_id = msg.get("id")
-            if req_id is not None:
-                resp = {"jsonrpc": "2.0", "id": req_id, "result": {"approved": True}}
-                if self._process and self._process.stdin:
-                    line = json.dumps(resp) + "\n"
-                    self._process.stdin.write(line.encode())
-                    await self._process.stdin.drain()
-
-        elif method == "file_change_approval_request":
-            # Auto-approve file changes
-            req_id = msg.get("id")
-            if req_id is not None:
-                resp = {"jsonrpc": "2.0", "id": req_id, "result": {"approved": True}}
-                if self._process and self._process.stdin:
-                    line = json.dumps(resp) + "\n"
-                    self._process.stdin.write(line.encode())
-                    await self._process.stdin.drain()
-
-        elif method == "patch_apply_approval_request":
-            # Auto-approve patches
-            req_id = msg.get("id")
-            if req_id is not None:
-                resp = {"jsonrpc": "2.0", "id": req_id, "result": {"approved": True}}
-                if self._process and self._process.stdin:
-                    line = json.dumps(resp) + "\n"
-                    self._process.stdin.write(line.encode())
-                    await self._process.stdin.drain()
+        elif method in self._APPROVAL_METHODS:
+            await self._auto_approve(msg)
 
         elif method == "error":
             logger.error("Codex error: %s", params)
+
+    async def _flush_accumulated_text(self) -> None:
+        """Fire on_message with any accumulated text and reset the buffer."""
+        if self.on_message and self._accumulated_text:
+            msg_dict = {
+                "type": "assistant",
+                "model": self.model,
+                "content": [{"type": "text", "text": self._accumulated_text}],
+            }
+            await self.on_message(msg_dict)
+        self._accumulated_text = ""
+
+    async def _auto_approve(self, msg: dict) -> None:
+        """Auto-approve a permission request from the Codex process."""
+        req_id = msg.get("id")
+        if req_id is not None:
+            resp = {"jsonrpc": "2.0", "id": req_id, "result": {"approved": True}}
+            if self._process and self._process.stdin:
+                line = json.dumps(resp) + "\n"
+                self._process.stdin.write(line.encode())
+                await self._process.stdin.drain()
 
     async def _prompt_loop(self) -> None:
         """Process queued prompts one at a time."""
