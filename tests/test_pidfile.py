@@ -1,8 +1,6 @@
 """Tests for culture.pidfile — PID file management and process validation."""
 
 import os
-import sys
-import tempfile
 from pathlib import Path
 from unittest.mock import patch
 
@@ -46,7 +44,6 @@ class TestIsProcessAlive:
         assert is_process_alive(os.getpid()) is True
 
     def test_nonexistent_pid(self):
-        # PID 0 is kernel — os.kill(0,0) would signal the process group.
         # Use a very high PID unlikely to exist.
         assert is_process_alive(4_000_000) is False
 
@@ -57,32 +54,69 @@ class TestIsCultureProcess:
         reason="/proc not available",
     )
     def test_current_process_is_python(self):
-        # We're running under pytest, so cmdline contains "python" or the
-        # test runner. It should also contain "culture" if run from the
-        # culture project (pytest discovers culture modules).
-        # At minimum, verify it doesn't crash and returns a bool.
+        # We're running under pytest — cmdline won't contain "culture"
+        # as an exact argv token, so this should return False.
         result = is_culture_process(os.getpid())
         assert isinstance(result, bool)
 
-    @pytest.mark.skipif(
-        not Path("/proc/self/cmdline").exists(),
-        reason="/proc not available",
-    )
-    def test_nonexistent_pid_returns_true(self):
-        # /proc/<pid>/cmdline won't exist — OSError path returns True
-        assert is_culture_process(4_000_000) is True
-
-    @pytest.mark.skipif(
-        not Path("/proc/self/cmdline").exists(),
-        reason="/proc not available",
-    )
-    def test_init_process_is_not_culture(self):
-        # PID 1 (init/systemd) should not contain "culture" in cmdline
-        result = is_culture_process(1)
-        assert result is False
-
-    def test_oserror_returns_true(self):
-        """When /proc is unavailable, assume the PID is valid."""
-        with patch("culture.pidfile.Path") as mock_path:
-            mock_path.return_value.read_bytes.side_effect = OSError("no /proc")
+    def test_cmdline_with_culture_token(self):
+        """Exact argv token 'culture' is recognized (e.g. -m culture)."""
+        raw = b"/usr/bin/python3\x00-m\x00culture\x00start\x00"
+        with (
+            patch("culture.pidfile.Path") as mock_path,
+            patch("culture.pidfile.os.path.isdir", return_value=True),
+        ):
+            mock_path.return_value.read_bytes.return_value = raw
             assert is_culture_process(999) is True
+
+    def test_cmdline_with_culture_basename(self):
+        """argv[0] with basename 'culture' is recognized."""
+        raw = b"/home/user/.local/bin/culture\x00server\x00start\x00"
+        with (
+            patch("culture.pidfile.Path") as mock_path,
+            patch("culture.pidfile.os.path.isdir", return_value=True),
+        ):
+            mock_path.return_value.read_bytes.return_value = raw
+            assert is_culture_process(999) is True
+
+    def test_cmdline_without_culture(self):
+        """Process with unrelated cmdline is rejected."""
+        raw = b"/sbin/init\x00--system\x00"
+        with (
+            patch("culture.pidfile.Path") as mock_path,
+            patch("culture.pidfile.os.path.isdir", return_value=True),
+        ):
+            mock_path.return_value.read_bytes.return_value = raw
+            assert is_culture_process(999) is False
+
+    def test_cmdline_substring_not_matched(self):
+        """Substring 'culture' inside another token is NOT matched."""
+        raw = b"/usr/bin/agriculture-daemon\x00--flag\x00"
+        with (
+            patch("culture.pidfile.Path") as mock_path,
+            patch("culture.pidfile.os.path.isdir", return_value=True),
+        ):
+            mock_path.return_value.read_bytes.return_value = raw
+            assert is_culture_process(999) is False
+
+    def test_no_proc_returns_true(self):
+        """When /proc doesn't exist (macOS/Windows), assume valid."""
+        with patch("culture.pidfile.os.path.isdir", return_value=False):
+            assert is_culture_process(999) is True
+
+    def test_oserror_on_linux_returns_false(self):
+        """On Linux, read failures fail closed (return False)."""
+        with (
+            patch("culture.pidfile.Path") as mock_path,
+            patch("culture.pidfile.os.path.isdir", return_value=True),
+        ):
+            mock_path.return_value.read_bytes.side_effect = OSError("denied")
+            assert is_culture_process(999) is False
+
+    @pytest.mark.skipif(
+        not Path("/proc/self/cmdline").exists(),
+        reason="/proc not available",
+    )
+    def test_nonexistent_pid_fails_closed(self):
+        """/proc exists but PID doesn't — should return False."""
+        assert is_culture_process(4_000_000) is False

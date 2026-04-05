@@ -908,6 +908,11 @@ def _try_pid_shutdown(nick: str) -> None:
         print(f"No PID file for agent '{nick}'")
         return
 
+    if pid <= 0:
+        print(f"Invalid PID {pid} for agent '{nick}' — removing corrupt PID file")
+        remove_pid(pid_name)
+        return
+
     if not is_process_alive(pid):
         print(f"Agent '{nick}' is not running (stale PID {pid})")
         remove_pid(pid_name)
@@ -931,6 +936,13 @@ def _try_pid_shutdown(nick: str) -> None:
             remove_pid(pid_name)
             return
         time.sleep(0.1)
+
+    # Re-validate ownership before escalating — the original process may have
+    # exited and the PID may have been reused during the 5s wait.
+    if not is_culture_process(pid):
+        print(f"PID {pid} is no longer a culture process — aborting kill")
+        remove_pid(pid_name)
+        return
 
     # Force kill
     if sys.platform == "win32":

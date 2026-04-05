@@ -75,16 +75,22 @@ def remove_port(name: str) -> None:
 def is_culture_process(pid: int) -> bool:
     """Check whether the given PID belongs to a culture process.
 
-    Reads /proc/<pid>/cmdline on Linux to verify the process was launched
-    by culture. On platforms without /proc, returns True (assumes valid).
-    This guards against PID reuse — if an agent dies and its PID is
-    reassigned to an unrelated process, we won't kill it.
+    Reads /proc/<pid>/cmdline on Linux and checks NUL-separated argv
+    tokens for an exact "culture" match (e.g. argv[0] basename or a
+    ``-m culture`` argument).  On platforms without /proc, returns True
+    (assumes valid).  On Linux, read/parse failures return False (fail
+    closed) to avoid killing unrelated processes after PID reuse.
     """
-    try:
-        cmdline = Path(f"/proc/{pid}/cmdline").read_bytes().decode(errors="replace")
-        return "culture" in cmdline
-    except (OSError, PermissionError):
+    if not os.path.isdir("/proc"):
+        # /proc not available (macOS / Windows) — can't verify, assume valid
         return True
+    try:
+        raw = Path(f"/proc/{pid}/cmdline").read_bytes()
+        tokens = [t for t in raw.decode(errors="replace").split("\x00") if t]
+        return any(os.path.basename(t) == "culture" or t == "culture" for t in tokens)
+    except (OSError, PermissionError):
+        # On Linux /proc exists but we can't read this PID — fail closed
+        return False
 
 
 def is_process_alive(pid: int) -> bool:
