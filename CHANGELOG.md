@@ -4,6 +4,13 @@ All notable changes to this project will be documented in this file.
 
 Format follows [Keep a Changelog](https://keepachangelog.com/).
 
+## [1.0.6] - 2026-04-05
+
+
+### Added
+
+- Project-local run-tests skill for portable pytest execution
+
 ## [1.0.5] - 2026-04-05
 
 
