@@ -21,7 +21,7 @@ def daemon():
 @pytest.mark.asyncio
 async def test_ipc_status_initial(daemon):
     """Status should report idle and not paused initially."""
-    resp = await daemon._ipc_status("req-1")
+    resp = await daemon._ipc_status("req-1", {})
     assert resp["ok"] is True
     data = resp["data"]
     assert data["paused"] is False
@@ -34,11 +34,11 @@ async def test_ipc_status_initial(daemon):
 @pytest.mark.asyncio
 async def test_ipc_pause(daemon):
     """Pause should set paused flag."""
-    resp = await daemon._ipc_pause("req-2")
+    resp = await daemon._ipc_pause("req-2", {})
     assert resp["ok"] is True
     assert daemon._paused is True
 
-    status = await daemon._ipc_status("req-3")
+    status = await daemon._ipc_status("req-3", {})
     assert status["data"]["paused"] is True
     assert status["data"]["activity"] == "paused"
     assert status["data"]["description"] == "paused"
@@ -48,11 +48,11 @@ async def test_ipc_pause(daemon):
 async def test_ipc_resume(daemon):
     """Resume should clear paused flag."""
     daemon._paused = True
-    resp = await daemon._ipc_resume("req-4")
+    resp = await daemon._ipc_resume("req-4", {})
     assert resp["ok"] is True
     assert daemon._paused is False
 
-    status = await daemon._ipc_status("req-5")
+    status = await daemon._ipc_status("req-5", {})
     assert status["data"]["paused"] is False
     assert status["data"]["activity"] == "idle"
     assert status["data"]["description"] == "nothing"
@@ -89,7 +89,7 @@ async def test_on_agent_message_captures_activity(daemon):
     await daemon._on_agent_message(msg)
     assert daemon._last_activity_text == "Working on fixing tests"
 
-    status = await daemon._ipc_status("req-6")
+    status = await daemon._ipc_status("req-6", {})
     assert status["data"]["description"] == "Working on fixing tests"
 
 

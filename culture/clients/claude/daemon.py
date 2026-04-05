@@ -479,12 +479,12 @@ class AgentDaemon:
     # IPC sub-handlers
     # ------------------------------------------------------------------
 
-    async def _ipc_pause(self, req_id: str, msg: dict | None = None) -> dict:
+    async def _ipc_pause(self, req_id: str, msg: dict) -> dict:
         self._paused = True
         logger.info("Agent %s paused", self.agent.nick)
         return make_response(req_id, ok=True)
 
-    async def _ipc_resume(self, req_id: str, msg: dict | None = None) -> dict:
+    async def _ipc_resume(self, req_id: str, msg: dict) -> dict:
         self._paused = False
         logger.info("Agent %s resumed", self.agent.nick)
         # NOTE: Catch-up on missed messages is not yet implemented.
@@ -492,12 +492,12 @@ class AgentDaemon:
         # The agent resumes and will see new messages going forward.
         return make_response(req_id, ok=True)
 
-    async def _ipc_status(self, req_id: str, msg: dict | None = None) -> dict:
+    async def _ipc_status(self, req_id: str, msg: dict) -> dict:
         running = self._agent_runner is not None and self._agent_runner.is_running()
         turn_count = self._supervisor._turn_count if self._supervisor else 0
 
         # Determine activity description
-        query = msg.get("query", False) if msg else False
+        query = msg.get("query", False)
         description = self._describe_activity(live_query=query)
 
         # If live query requested and agent is active, ask the agent directly
