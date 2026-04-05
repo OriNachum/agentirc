@@ -66,8 +66,8 @@ class SocketServer:
         self, reader: asyncio.StreamReader, writer: asyncio.StreamWriter
     ) -> None:
         self._clients.append(writer)
-        await self._drain_queued_whispers(writer)
         try:
+            await self._drain_queued_whispers(writer)
             await self._process_client_messages(reader, writer)
         finally:
             self._cleanup_client(writer)

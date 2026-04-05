@@ -3,7 +3,7 @@
 from __future__ import annotations
 
 import time
-from typing import TYPE_CHECKING
+from typing import TYPE_CHECKING, Callable
 
 from culture.protocol import replies
 from culture.protocol.message import Message
@@ -179,7 +179,9 @@ class RoomsSkill(Skill):
                 client, channel, channel_name, msg.params[1], msg.params[2], READ_ONLY_KEYS
             )
 
-    async def _query_all_roommeta(self, client, channel, channel_name, _channel_meta):
+    async def _query_all_roommeta(
+        self, client: Client, channel, channel_name: str, _channel_meta: Callable
+    ) -> None:
         """Send all metadata key-value pairs for a channel."""
         meta = _channel_meta(channel)
         for key, value in meta.items():
@@ -198,7 +200,9 @@ class RoomsSkill(Skill):
             )
         )
 
-    async def _query_single_roommeta(self, client, channel, channel_name, key, _channel_meta):
+    async def _query_single_roommeta(
+        self, client: Client, channel, channel_name: str, key: str, _channel_meta: Callable
+    ) -> None:
         """Send a single metadata value for a channel."""
         meta = _channel_meta(channel)
         value = meta.get(key, channel.extra_meta.get(key, ""))
@@ -217,7 +221,9 @@ class RoomsSkill(Skill):
             )
         )
 
-    async def _update_roommeta(self, client, channel, channel_name, key, value, read_only_keys):
+    async def _update_roommeta(
+        self, client: Client, channel, channel_name: str, key: str, value: str, read_only_keys: set
+    ) -> None:
         """Validate permissions and apply a metadata update."""
         is_owner = channel.owner == client.nick
         is_operator = channel.is_operator(client)
