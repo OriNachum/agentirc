@@ -6,7 +6,6 @@ entry must be cleaned up so that future responses route correctly.
 
 import asyncio
 import tempfile
-from collections import deque
 from unittest.mock import AsyncMock, MagicMock
 
 import pytest
@@ -22,7 +21,7 @@ from culture.clients.acp.daemon import ACPDaemon
 def _make_daemon(server_port: int) -> ACPDaemon:
     config = DaemonConfig(
         server=ServerConnConfig(host="127.0.0.1", port=server_port),
-        poll_interval=1,
+        poll_interval=0,
     )
     agent = AgentConfig(
         nick="testserv-bot",
