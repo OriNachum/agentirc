@@ -4,6 +4,13 @@ All notable changes to this project will be documented in this file.
 
 Format follows [Keep a Changelog](https://keepachangelog.com/).
 
+## [4.1.2] - 2026-04-06
+
+
+### Fixed
+
+- Clean up _mention_targets deque on prompt failure to prevent misrouted responses
+
 ## [4.1.1] - 2026-04-06
 
 
