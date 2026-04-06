@@ -90,7 +90,7 @@ class ConsoleIRCClient:
         await self._send_raw(f"USER {self.nick} 0 * :{self.nick}")
 
         # Wait for RPL_WELCOME (001) before proceeding
-        welcome_future: asyncio.Future[Message] = asyncio.get_event_loop().create_future()
+        welcome_future: asyncio.Future[Message] = asyncio.get_running_loop().create_future()
         self._pending["001"] = welcome_future
 
         # Start the read loop so the future can be resolved
@@ -99,8 +99,13 @@ class ConsoleIRCClient:
         try:
             await asyncio.wait_for(welcome_future, timeout=REGISTER_TIMEOUT)
         except asyncio.TimeoutError:
+            self._pending.clear()
             if self._read_task:
                 self._read_task.cancel()
+            if self._writer:
+                self._writer.close()
+                self._writer = None
+                self._reader = None
             raise ConnectionError("Timed out waiting for server welcome (001)")
 
         # Set user mode
@@ -135,11 +140,15 @@ class ConsoleIRCClient:
 
     async def join(self, channel: str) -> None:
         """Join a channel and track it in joined_channels."""
+        if not self.connected or self._writer is None:
+            return
         await self._send_raw(f"JOIN {channel}")
         self.joined_channels.add(channel)
 
     async def part(self, channel: str) -> None:
         """Part a channel and remove it from joined_channels."""
+        if not self.connected or self._writer is None:
+            return
         await self._send_raw(f"PART {channel}")
         self.joined_channels.discard(channel)
 
@@ -164,7 +173,7 @@ class ConsoleIRCClient:
         """
         key = "LIST"
         self._collect_buffers[key] = []
-        end_future: asyncio.Future[None] = asyncio.get_event_loop().create_future()
+        end_future: asyncio.Future[None] = asyncio.get_running_loop().create_future()
         self._pending["323"] = end_future
 
         await self._send_raw("LIST")
@@ -186,7 +195,7 @@ class ConsoleIRCClient:
         """
         key = f"WHO {target}"
         self._collect_buffers[key] = []
-        end_future: asyncio.Future[None] = asyncio.get_event_loop().create_future()
+        end_future: asyncio.Future[None] = asyncio.get_running_loop().create_future()
         self._pending[f"315:{target}"] = end_future
 
         await self._send_raw(f"WHO {target}")
@@ -208,7 +217,7 @@ class ConsoleIRCClient:
         """
         key = f"HISTORY {channel}"
         self._collect_buffers[key] = []
-        end_future: asyncio.Future[None] = asyncio.get_event_loop().create_future()
+        end_future: asyncio.Future[None] = asyncio.get_running_loop().create_future()
         self._pending[f"HISTORYEND:{channel}"] = end_future
 
         await self._send_raw(f"HISTORY RECENT {channel} {limit}")
@@ -351,16 +360,3 @@ class ConsoleIRCClient:
             return  # don't buffer own messages
         channel = target if target.startswith("#") else f"DM:{sender}"
         self._message_buffer.append(ChatMessage(channel=channel, nick=sender, text=text))
-
-    async def _wait_for(self, command: str, timeout: float = QUERY_TIMEOUT) -> Any:
-        """Create and await an asyncio.Future for a specific response command.
-
-        Stores the future in self._pending[command] so _handle can resolve it.
-        """
-        fut: asyncio.Future[Any] = asyncio.get_event_loop().create_future()
-        self._pending[command] = fut
-        try:
-            return await asyncio.wait_for(asyncio.shield(fut), timeout=timeout)
-        except asyncio.TimeoutError:
-            self._pending.pop(command, None)
-            raise

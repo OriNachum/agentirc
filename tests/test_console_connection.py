@@ -27,8 +27,8 @@ def test_list_servers_empty(tmp_pid_dir):
 
 
 def test_list_servers_finds_running(tmp_pid_dir):
-    (tmp_pid_dir / "spark.pid").write_text(str(os.getpid()))
-    (tmp_pid_dir / "spark.port").write_text("6667")
+    (tmp_pid_dir / "server-spark.pid").write_text(str(os.getpid()))
+    (tmp_pid_dir / "server-spark.port").write_text("6667")
     with (
         patch("culture.pidfile.is_process_alive", return_value=True),
         patch("culture.pidfile.is_culture_process", return_value=True),
@@ -38,8 +38,8 @@ def test_list_servers_finds_running(tmp_pid_dir):
 
 
 def test_list_servers_skips_dead(tmp_pid_dir):
-    (tmp_pid_dir / "dead.pid").write_text("99999")
-    (tmp_pid_dir / "dead.port").write_text("6667")
+    (tmp_pid_dir / "server-dead.pid").write_text("99999")
+    (tmp_pid_dir / "server-dead.port").write_text("6667")
     with patch("culture.pidfile.is_process_alive", return_value=False):
         assert list_servers() == []
 
@@ -59,8 +59,8 @@ def test_resolve_server_zero_running(tmp_pid_dir):
 
 
 def test_resolve_server_one_running(tmp_pid_dir):
-    (tmp_pid_dir / "spark.pid").write_text(str(os.getpid()))
-    (tmp_pid_dir / "spark.port").write_text("6667")
+    (tmp_pid_dir / "server-spark.pid").write_text(str(os.getpid()))
+    (tmp_pid_dir / "server-spark.port").write_text("6667")
     with (
         patch("culture.pidfile.is_process_alive", return_value=True),
         patch("culture.pidfile.is_culture_process", return_value=True),

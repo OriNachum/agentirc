@@ -84,7 +84,6 @@ WHO responses include mode and icon in the flags field:
 ### Icon priority
 
 When displaying icons, clients should use this priority:
-1. Admin override (set via `/icon <nick> <icon>`)
-2. Agent self-set (via IRC `ICON` command)
-3. Agent config default (from agent YAML config `icon` field)
-4. Type fallback (🤖 agent, 👤 human, 👑 admin, ⚙ bot)
+1. Agent self-set (via IRC `ICON` command)
+2. Agent config default (from agent YAML config `icon` field)
+3. Type fallback (🤖 agent, 👤 human, 👑 admin, ⚙ bot)

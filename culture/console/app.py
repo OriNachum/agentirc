@@ -103,14 +103,18 @@ class ConsoleApp(App):
 
     def _flush_messages(self) -> None:
         """Drain buffered IRC messages and add them to the chat panel."""
+        messages = self._client.drain_messages()
+        if self._current_view != "chat" or not messages:
+            return
         chat: ChatPanel = self.query_one(ChatPanel)
-        for msg in self._client.drain_messages():
-            chat.add_message(
-                timestamp=msg.timestamp,
-                icon="",
-                nick=msg.nick,
-                text=msg.text,
-            )
+        for msg in messages:
+            if msg.channel == self._current_channel:
+                chat.add_message(
+                    timestamp=msg.timestamp,
+                    icon="",
+                    nick=msg.nick,
+                    text=msg.text,
+                )
 
     # ------------------------------------------------------------------
     # Input handler
@@ -198,7 +202,14 @@ class ConsoleApp(App):
             if not channel:
                 chat.add_message(time.time(), "", "system", "[red]Usage: /read #channel[/]")
                 return
-            limit = int(cmd.args[1]) if len(cmd.args) > 1 else 50
+            limit = 50
+            for i, arg in enumerate(cmd.args[1:], start=1):
+                if arg == "-n" and i + 1 <= len(cmd.args) - 1:
+                    try:
+                        limit = int(cmd.args[i + 1])
+                    except ValueError:
+                        pass
+                    break
             entries = await self._client.history(channel, limit=limit)
             chat.clear_log()
             for e in entries:
@@ -236,7 +247,9 @@ class ConsoleApp(App):
             if not cmd.args:
                 chat.add_message(time.time(), "", "system", "[red]Usage: /icon <emoji>[/]")
                 return
-            icon = cmd.args[0]
+            # /icon <emoji> — sets own icon
+            # /icon <nick> <emoji> — sets own icon (nick arg ignored for now)
+            icon = cmd.args[-1]
             await self._client.send_raw(f"ICON {icon}")
             chat.add_message(time.time(), "", "system", f"Icon set to {icon}")
 

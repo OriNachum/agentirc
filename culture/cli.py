@@ -393,9 +393,6 @@ def main() -> None:
 
 def _cmd_console(args: argparse.Namespace) -> None:
     """Launch the interactive console TUI."""
-    import re
-    import subprocess
-
     from culture.pidfile import list_servers, read_default_server, read_port
 
     server_name = args.server_name

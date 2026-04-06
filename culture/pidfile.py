@@ -114,12 +114,14 @@ def list_servers() -> list[dict]:
     if not pid_dir.exists():
         return []
     servers = []
-    for pid_path in sorted(pid_dir.glob("*.pid")):
-        name = pid_path.stem
-        pid = read_pid(name)
+    prefix = "server-"
+    for pid_path in sorted(pid_dir.glob(f"{prefix}*.pid")):
+        pid_name = pid_path.stem  # e.g. "server-spark"
+        name = pid_name[len(prefix) :]  # e.g. "spark"
+        pid = read_pid(pid_name)
         if pid is None or not is_process_alive(pid) or not is_culture_process(pid):
             continue
-        port = read_port(name) or 6667
+        port = read_port(pid_name) or 6667
         servers.append({"name": name, "pid": pid, "port": port})
     return servers
 
