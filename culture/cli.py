@@ -513,6 +513,11 @@ def _server_start(args: argparse.Namespace) -> None:
         print(f"Server '{args.name}' starting in foreground (PID {os.getpid()})")
         print(f"  Listening on {args.host}:{args.port}")
         print(f"  Webhook port: {args.webhook_port}")
+        # Auto-set default server if none is set
+        from culture.pidfile import read_default_server, write_default_server
+
+        if read_default_server() is None:
+            write_default_server(args.name)
         try:
             asyncio.run(_run_server(args.name, args.host, args.port, links, args.webhook_port))
         finally:
@@ -531,6 +536,11 @@ def _server_start(args: argparse.Namespace) -> None:
             print(f"Server '{args.name}' started (PID {pid})")
             print(f"  Listening on {args.host}:{args.port}")
             print(f"  Logs: {LOG_DIR}/server-{args.name}.log")
+            # Auto-set default server if none is set
+            from culture.pidfile import read_default_server, write_default_server
+
+            if read_default_server() is None:
+                write_default_server(args.name)
         else:
             print(f"Server '{args.name}' failed to start", file=sys.stderr)
             sys.exit(1)
