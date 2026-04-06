@@ -29,6 +29,7 @@ import logging
 import os
 import shutil
 import signal
+import socket
 import subprocess
 import sys
 import time
@@ -532,19 +533,42 @@ def _server_start(args: argparse.Namespace) -> None:
     # Fork to daemonize
     pid = os.fork()
     if pid > 0:
-        time.sleep(0.2)
-        if is_process_alive(pid):
-            print(f"Server '{args.name}' started (PID {pid})")
-            print(f"  Listening on {args.host}:{args.port}")
-            print(f"  Logs: {LOG_DIR}/server-{args.name}.log")
-            # Auto-set default server if none is set
-            from culture.pidfile import read_default_server, write_default_server
-
-            if read_default_server() is None:
-                write_default_server(args.name)
+        # Wait for the server to actually accept connections before returning
+        check_host = "127.0.0.1" if args.host == "0.0.0.0" else args.host
+        deadline = time.monotonic() + 30
+        while time.monotonic() < deadline:
+            if not is_process_alive(pid):
+                print(f"Server '{args.name}' failed to start", file=sys.stderr)
+                print(
+                    f"  Check logs: {LOG_DIR}/server-{args.name}.log",
+                    file=sys.stderr,
+                )
+                sys.exit(1)
+            try:
+                s = socket.create_connection((check_host, args.port), timeout=0.5)
+                s.close()
+                break
+            except OSError:
+                time.sleep(0.2)
         else:
-            print(f"Server '{args.name}' failed to start", file=sys.stderr)
+            print(
+                f"Server '{args.name}' started (PID {pid}) but not yet accepting connections",
+                file=sys.stderr,
+            )
+            print(
+                f"  Check logs: {LOG_DIR}/server-{args.name}.log",
+                file=sys.stderr,
+            )
             sys.exit(1)
+
+        print(f"Server '{args.name}' started (PID {pid})")
+        print(f"  Listening on {args.host}:{args.port}")
+        print(f"  Logs: {LOG_DIR}/server-{args.name}.log")
+        # Auto-set default server if none is set
+        from culture.pidfile import read_default_server, write_default_server
+
+        if read_default_server() is None:
+            write_default_server(args.name)
         return
 
     # Child: detach from parent session
@@ -561,6 +585,13 @@ def _server_start(args: argparse.Namespace) -> None:
     devnull = os.open(os.devnull, os.O_RDONLY)
     os.dup2(devnull, 0)
     os.close(devnull)
+
+    # Reconfigure logging so handlers write to the redirected stderr (log file)
+    logging.basicConfig(
+        level=logging.INFO,
+        format="%(asctime)s %(name)s %(levelname)s %(message)s",
+        force=True,
+    )
 
     write_pid(pid_name, os.getpid())
 
