@@ -1,5 +1,6 @@
 import asyncio
 import tempfile
+from unittest.mock import AsyncMock, MagicMock
 
 import pytest
 
@@ -7,10 +8,18 @@ from culture.clients.claude.config import (
     AgentConfig,
     DaemonConfig,
     ServerConnConfig,
-    SupervisorConfig,
-    WebhookConfig,
 )
 from culture.clients.claude.daemon import AgentDaemon
+
+
+def _inject_fake_runner(daemon):
+    """Inject a fake agent runner that records prompts."""
+    runner = MagicMock()
+    runner.is_running.return_value = True
+    runner.send_prompt = AsyncMock()
+    runner.stop = AsyncMock()
+    daemon._agent_runner = runner
+    return runner
 
 
 @pytest.mark.asyncio
@@ -24,6 +33,7 @@ async def test_poll_loop_sends_prompt_on_unread(server, make_client):
     sock_dir = tempfile.mkdtemp()
     daemon = AgentDaemon(config, agent, socket_dir=sock_dir, skip_claude=True)
     await daemon.start()
+    runner = _inject_fake_runner(daemon)
     await asyncio.sleep(0.5)
 
     # Human sends a message (no @mention)
@@ -31,12 +41,15 @@ async def test_poll_loop_sends_prompt_on_unread(server, make_client):
     await human.send("JOIN #general")
     await human.recv_all(timeout=0.3)
     await human.send("PRIVMSG #general :hello everyone")
-    await asyncio.sleep(0.3)
 
-    # Verify message is in buffer
-    msgs = daemon._buffer.read("#general")
-    assert len(msgs) >= 1
-    assert any("hello everyone" in m.text for m in msgs)
+    # Wait for poll to fire
+    await asyncio.sleep(1.5)
+
+    # Poll loop should have sent the prompt to the agent runner
+    assert runner.send_prompt.call_count >= 1
+    prompt = runner.send_prompt.call_args[0][0]
+    assert "hello everyone" in prompt
+    assert "[IRC Channel Poll: #general]" in prompt
 
     await daemon.stop()
 
@@ -52,10 +65,12 @@ async def test_poll_loop_skips_when_paused(server, make_client):
     sock_dir = tempfile.mkdtemp()
     daemon = AgentDaemon(config, agent, socket_dir=sock_dir, skip_claude=True)
     await daemon.start()
-    await asyncio.sleep(0.5)
+    runner = _inject_fake_runner(daemon)
 
     # Pause the daemon
     daemon._paused = True
+
+    await asyncio.sleep(0.5)
 
     # Human sends a message
     human = await make_client(nick="testserv-ori", user="ori")
@@ -64,7 +79,10 @@ async def test_poll_loop_skips_when_paused(server, make_client):
     await human.send("PRIVMSG #general :paused message")
     await asyncio.sleep(1.5)  # Wait past poll interval
 
-    # Buffer should still have unread messages (poll didn't consume them)
+    # Poll should NOT have sent any prompts
+    runner.send_prompt.assert_not_called()
+
+    # Buffer should still have unread messages
     msgs = daemon._buffer.read("#general")
     assert len(msgs) >= 1
     assert any("paused message" in m.text for m in msgs)
@@ -83,11 +101,11 @@ async def test_poll_loop_skips_empty_buffer(server):
     sock_dir = tempfile.mkdtemp()
     daemon = AgentDaemon(config, agent, socket_dir=sock_dir, skip_claude=True)
     await daemon.start()
+    runner = _inject_fake_runner(daemon)
     await asyncio.sleep(1.5)  # Wait past poll interval
 
-    # Buffer should have no messages
-    msgs = daemon._buffer.read("#general")
-    assert len(msgs) == 0
+    # No messages were sent, so poll should not trigger
+    runner.send_prompt.assert_not_called()
 
     await daemon.stop()
 

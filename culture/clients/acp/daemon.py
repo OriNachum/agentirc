@@ -293,9 +293,7 @@ class ACPDaemon:
                         f"Respond naturally if any messages need your attention."
                     )
                     self._mention_targets.append(channel)
-                    task = asyncio.create_task(self._agent_runner.send_prompt(prompt))
-                    self._background_tasks.add(task)
-                    task.add_done_callback(self._background_tasks.discard)
+                    await self._agent_runner.send_prompt(prompt)
             except asyncio.CancelledError:
                 raise
             except Exception:

@@ -3,6 +3,7 @@ from __future__ import annotations
 
 import asyncio
 import logging
+import re
 from typing import Callable
 
 from culture.clients.BACKEND.message_buffer import MessageBuffer
@@ -192,8 +193,12 @@ class IRCTransport:
             self.buffer.add(target, sender, text)
         else:
             self.buffer.add(f"DM:{sender}", sender, text)
-        if self.on_mention and f"@{self.nick}" in text:
-            self.on_mention(target, sender, text)
+        if self.on_mention:
+            short = self.nick.split("-", 1)[1] if "-" in self.nick else None
+            if re.search(rf"@{re.escape(self.nick)}\b", text) or (
+                short and re.search(rf"@{re.escape(short)}\b", text)
+            ):
+                self.on_mention(target, sender, text)
 
     async def _on_notice(self, msg: Message) -> None:
         if len(msg.params) < 2:
