@@ -89,7 +89,7 @@ def _cmd_read(args: argparse.Namespace) -> None:
 
 def _cmd_message(args: argparse.Namespace) -> None:
     observer = get_observer(args.config)
-    target = args.target if args.target.startswith("#") else args.target
+    target = args.target if args.target.startswith("#") else f"#{args.target}"
     asyncio.run(observer.send_message(target, args.text))
     print(f"Sent to {target}")
 

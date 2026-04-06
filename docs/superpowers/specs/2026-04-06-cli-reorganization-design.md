@@ -2,7 +2,7 @@
 
 ## Context
 
-The culture CLI has grown to 22 top-level commands in a single 2,432-line `cli.py` file. Only `server`, `skills`, and `bot` have subcommand grouping — everything else is flat. This makes `culture --help` overwhelming, command discovery difficult, and the codebase hard to navigate. The goal is a clean, noun-first command hierarchy that groups commands by entity, splits the monolith into focused modules, and drops deprecated commands with no backward-compatibility shims (pre-1.0 clean break).
+The culture CLI has grown to 22 top-level commands in a single 2,432-line `cli.py` file. Only `server`, `skills`, and `bot` have subcommand grouping — everything else is flat. This makes `culture --help` overwhelming, command discovery difficult, and the codebase hard to navigate. The goal is a clean, noun-first command hierarchy that groups commands by entity, splits the monolith into focused modules, and drops deprecated commands with no backward-compatibility shims as part of a major-version breaking change.
 
 ## Command Hierarchy
 
@@ -67,6 +67,10 @@ culture
 - `server` — already had subcommands, stays the same
 - `bot` — already had subcommands, stays the same
 - `skills` — already had subcommands, stays the same
+
+## Protocol
+
+This is a CLI-only reorganization. No IRC protocol changes, no new verbs, no wire-format modifications. The server, S2S linking, and all IRC extensions are unaffected.
 
 ## File Structure
 

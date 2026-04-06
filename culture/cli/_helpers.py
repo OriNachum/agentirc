@@ -255,6 +255,10 @@ def server_stop_by_name(name: str) -> None:
             remove_pid(pid_name)
         return
 
+    if not is_culture_process(pid):
+        remove_pid(pid_name)
+        return
+
     os.kill(pid, signal.SIGTERM)
     for _ in range(50):
         if not is_process_alive(pid):

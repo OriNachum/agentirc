@@ -137,7 +137,9 @@ def register(subparsers: argparse._SubParsersAction) -> None:
     message_parser.add_argument("--config", default=DEFAULT_CONFIG, help=_CONFIG_HELP)
 
     # -- read -----------------------------------------------------------------
-    read_parser = agent_sub.add_parser("read", help="Read DM history with an agent")
+    read_parser = agent_sub.add_parser(
+        "read", help="Read DM history with an agent (not yet implemented)"
+    )
     read_parser.add_argument("target", help="Agent nick")
     read_parser.add_argument("--limit", "-n", type=int, default=50, help="Number of messages")
     read_parser.add_argument("--config", default=DEFAULT_CONFIG, help=_CONFIG_HELP)
@@ -434,7 +436,10 @@ async def _run_single_agent(config: DaemonConfig, agent: AgentConfig) -> None:
 
     loop = asyncio.get_event_loop()
     for sig in (signal.SIGINT, signal.SIGTERM):
-        loop.add_signal_handler(sig, stop_event.set)
+        try:
+            loop.add_signal_handler(sig, stop_event.set)
+        except (NotImplementedError, RuntimeError):
+            signal.signal(sig, lambda *_: stop_event.set())
 
     await stop_event.wait()
     logger.info("Shutting down %s", agent.nick)
@@ -727,12 +732,9 @@ def _cmd_message(args: argparse.Namespace) -> None:
 
 
 def _cmd_read(args: argparse.Namespace) -> None:
-    observer = get_observer(args.config)
-    messages = asyncio.run(observer.read_channel(args.target, limit=args.limit))
-
-    if not messages:
-        print(f"No messages for {args.target}")
-        return
-
-    for msg in messages:
-        print(msg)
+    print(
+        "DM history is not yet implemented. The server does not store direct message history.",
+        file=sys.stderr,
+    )
+    print("Use 'culture channel read <channel>' for channel history.", file=sys.stderr)
+    sys.exit(1)

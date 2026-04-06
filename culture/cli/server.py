@@ -12,6 +12,7 @@ import sys
 import time
 
 from culture.pidfile import (
+    is_culture_process,
     is_process_alive,
     read_pid,
     remove_pid,
@@ -315,6 +316,11 @@ def _server_stop(args: argparse.Namespace) -> None:
 
     if not is_process_alive(pid):
         print(f"Server '{args.name}' is not running (stale PID {pid})")
+        remove_pid(pid_name)
+        return
+
+    if not is_culture_process(pid):
+        print(f"PID {pid} is not a culture process — removing stale PID file")
         remove_pid(pid_name)
         return
 

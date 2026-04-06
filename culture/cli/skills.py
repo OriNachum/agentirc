@@ -23,7 +23,10 @@ def register(subparsers: argparse._SubParsersAction) -> None:
 
 def dispatch(args: argparse.Namespace) -> None:
     if not hasattr(args, "skills_command") or args.skills_command != "install":
-        print("Usage: culture skills install <claude|codex|copilot|acp|all>", file=sys.stderr)
+        print(
+            "Usage: culture skills install <claude|codex|copilot|acp|opencode|all>",
+            file=sys.stderr,
+        )
         sys.exit(1)
 
     target = args.target
