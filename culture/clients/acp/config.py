@@ -248,3 +248,30 @@ def rename_agent(
             return
 
     raise ValueError(f"agent {old_nick!r} not found in config")
+
+
+def remove_agent(
+    path: str | Path,
+    nick: str,
+) -> None:
+    """Remove an agent from config entirely.
+
+    Operates on raw YAML to preserve backend-specific fields on other
+    agents that the typed schema would strip.
+    Raises ValueError if the agent is not found.
+    """
+    path = Path(path)
+    if not path.exists():
+        raise ValueError(f"agent {nick!r} not found in config")
+
+    with open(path) as f:
+        raw = yaml.safe_load(f) or {}
+
+    agents = raw.get("agents", [])
+    for i, agent_raw in enumerate(agents):
+        if agent_raw.get("nick") == nick:
+            agents.pop(i)
+            with open(path, "w") as f:
+                yaml.dump(raw, f, default_flow_style=False, sort_keys=False)
+            return
+    raise ValueError(f"agent {nick!r} not found in config")

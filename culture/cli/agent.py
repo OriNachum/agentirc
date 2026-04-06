@@ -16,6 +16,7 @@ from culture.clients.claude.config import (
     archive_agent,
     load_config,
     load_config_or_default,
+    remove_agent,
     sanitize_agent_name,
     unarchive_agent,
 )
@@ -158,11 +159,16 @@ def register(subparsers: argparse._SubParsersAction) -> None:
     unarchive_parser.add_argument("nick", help="Agent nick to unarchive")
     unarchive_parser.add_argument("--config", default=DEFAULT_CONFIG, help=_CONFIG_HELP)
 
+    # -- delete ---------------------------------------------------------------
+    delete_parser = agent_sub.add_parser("delete", help="Remove an agent from config entirely")
+    delete_parser.add_argument("nick", help="Agent nick to delete")
+    delete_parser.add_argument("--config", default=DEFAULT_CONFIG, help=_CONFIG_HELP)
+
 
 def dispatch(args: argparse.Namespace) -> None:
     if not args.agent_command:
         print(
-            "Usage: culture agent {create|join|start|stop|status|rename|assign|sleep|wake|learn|message|read|archive|unarchive}",
+            "Usage: culture agent {create|join|start|stop|status|rename|assign|sleep|wake|learn|message|read|archive|unarchive|delete}",
             file=sys.stderr,
         )
         sys.exit(1)
@@ -182,6 +188,7 @@ def dispatch(args: argparse.Namespace) -> None:
         "read": _cmd_read,
         "archive": _cmd_archive,
         "unarchive": _cmd_unarchive,
+        "delete": _cmd_delete,
     }
     handler = handlers.get(args.agent_command)
     if handler:
@@ -264,6 +271,10 @@ def _cmd_create(args: argparse.Namespace) -> None:
 
     for existing in config.agents:
         if existing.nick == full_nick:
+            if existing.archived:
+                print(f"Replacing archived agent '{full_nick}'")
+                remove_agent(args.config, full_nick)
+                break
             channels = existing.channels if isinstance(existing.channels, list) else []
             print(f"Agent '{full_nick}' already exists in config", file=sys.stderr)
             print(f"  Directory: {existing.directory}", file=sys.stderr)
@@ -831,3 +842,20 @@ def _cmd_unarchive(args: argparse.Namespace) -> None:
 
     print(f"Agent unarchived: {args.nick}")
     print(f"\nStart with: culture agent start {args.nick}")
+
+
+def _cmd_delete(args: argparse.Namespace) -> None:
+    """Remove an agent from config entirely."""
+    config = load_config_or_default(args.config)
+    agent = config.get_agent(args.nick)
+    if not agent:
+        print(f"Agent '{args.nick}' not found in config", file=sys.stderr)
+        sys.exit(1)
+
+    # Stop the agent if it's running
+    pid = read_pid(f"agent-{args.nick}")
+    if pid and is_process_alive(pid):
+        stop_agent(args.nick)
+
+    remove_agent(args.config, args.nick)
+    print(f"Agent deleted: {args.nick}")
