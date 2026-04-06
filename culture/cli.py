@@ -80,6 +80,7 @@ def _parse_link(value: str):
 
 
 DEFAULT_CONFIG = os.path.expanduser("~/.culture/agents.yaml")
+_CONFIG_HELP = "Config file path"
 LOG_DIR = os.path.expanduser("~/.culture/logs")
 
 
@@ -140,7 +141,7 @@ def _build_parser() -> argparse.ArgumentParser:
         "rename", help="Rename the server (updates config and agent nicks)"
     )
     srv_rename.add_argument("new_name", help="New server name")
-    srv_rename.add_argument("--config", default=DEFAULT_CONFIG, help="Config file path")
+    srv_rename.add_argument("--config", default=DEFAULT_CONFIG, help=_CONFIG_HELP)
 
     # -- create / join subcommands -----------------------------------------
     # 'create' registers an agent definition; 'join' adds it to the mesh.
@@ -179,19 +180,19 @@ def _build_parser() -> argparse.ArgumentParser:
     rename_parser = sub.add_parser("rename", help="Rename an agent (same server)")
     rename_parser.add_argument("nick", help="Current agent nick (e.g. spark-culture)")
     rename_parser.add_argument("new_name", help="New agent name suffix (e.g. claude)")
-    rename_parser.add_argument("--config", default=DEFAULT_CONFIG, help="Config file path")
+    rename_parser.add_argument("--config", default=DEFAULT_CONFIG, help=_CONFIG_HELP)
 
     # -- assign subcommand -------------------------------------------------
     assign_parser = sub.add_parser("assign", help="Move an agent to a different server")
     assign_parser.add_argument("nick", help="Current agent nick (e.g. culture-culture)")
     assign_parser.add_argument("server", help="Target server name (e.g. spark)")
-    assign_parser.add_argument("--config", default=DEFAULT_CONFIG, help="Config file path")
+    assign_parser.add_argument("--config", default=DEFAULT_CONFIG, help=_CONFIG_HELP)
 
     # -- start subcommand --------------------------------------------------
     start_parser = sub.add_parser("start", help="Start agent daemon(s)")
     start_parser.add_argument("nick", nargs="?", help="Agent nick to start")
     start_parser.add_argument("--all", action="store_true", help="Start all agents")
-    start_parser.add_argument("--config", default=DEFAULT_CONFIG, help="Config file path")
+    start_parser.add_argument("--config", default=DEFAULT_CONFIG, help=_CONFIG_HELP)
     start_parser.add_argument(
         "--foreground",
         action="store_true",
@@ -202,7 +203,7 @@ def _build_parser() -> argparse.ArgumentParser:
     stop_parser = sub.add_parser("stop", help="Stop agent daemon(s)")
     stop_parser.add_argument("nick", nargs="?", help="Agent nick to stop")
     stop_parser.add_argument("--all", action="store_true", help="Stop all agents")
-    stop_parser.add_argument("--config", default=DEFAULT_CONFIG, help="Config file path")
+    stop_parser.add_argument("--config", default=DEFAULT_CONFIG, help=_CONFIG_HELP)
 
     # -- status subcommand -------------------------------------------------
     status_parser = sub.add_parser("status", help="List running agents")
@@ -210,45 +211,45 @@ def _build_parser() -> argparse.ArgumentParser:
     status_parser.add_argument(
         "--full", action="store_true", help="Query agents for activity status"
     )
-    status_parser.add_argument("--config", default=DEFAULT_CONFIG, help="Config file path")
+    status_parser.add_argument("--config", default=DEFAULT_CONFIG, help=_CONFIG_HELP)
 
     # -- read subcommand ---------------------------------------------------
     read_parser = sub.add_parser("read", help="Read recent channel messages")
     read_parser.add_argument("channel", help="Channel name (e.g. #general)")
     read_parser.add_argument("--limit", "-n", type=int, default=50, help="Number of messages")
-    read_parser.add_argument("--config", default=DEFAULT_CONFIG, help="Config file path")
+    read_parser.add_argument("--config", default=DEFAULT_CONFIG, help=_CONFIG_HELP)
 
     # -- who subcommand ----------------------------------------------------
     who_parser = sub.add_parser("who", help="List members of a channel")
     who_parser.add_argument("channel", help="Channel or nick target")
-    who_parser.add_argument("--config", default=DEFAULT_CONFIG, help="Config file path")
+    who_parser.add_argument("--config", default=DEFAULT_CONFIG, help=_CONFIG_HELP)
 
     # -- send subcommand ---------------------------------------------------
     send_parser = sub.add_parser("send", help="Send a message to a channel or agent")
     send_parser.add_argument("target", help="Channel (e.g. #general) or agent nick")
     send_parser.add_argument("message", help="Message text to send")
-    send_parser.add_argument("--config", default=DEFAULT_CONFIG, help="Config file path")
+    send_parser.add_argument("--config", default=DEFAULT_CONFIG, help=_CONFIG_HELP)
 
     # -- channels subcommand -----------------------------------------------
     channels_parser = sub.add_parser("channels", help="List active channels")
-    channels_parser.add_argument("--config", default=DEFAULT_CONFIG, help="Config file path")
+    channels_parser.add_argument("--config", default=DEFAULT_CONFIG, help=_CONFIG_HELP)
 
     # -- learn subcommand --------------------------------------------------
     learn_parser = sub.add_parser("learn", help="Print self-teaching prompt for your agent")
     learn_parser.add_argument("--nick", default=None, help="Agent nick (auto-detects from cwd)")
-    learn_parser.add_argument("--config", default=DEFAULT_CONFIG, help="Config file path")
+    learn_parser.add_argument("--config", default=DEFAULT_CONFIG, help=_CONFIG_HELP)
 
     # -- sleep subcommand --------------------------------------------------
     sleep_parser = sub.add_parser("sleep", help="Pause agent(s) — stay connected but idle")
     sleep_parser.add_argument("nick", nargs="?", help="Agent nick to pause")
     sleep_parser.add_argument("--all", action="store_true", help="Pause all agents")
-    sleep_parser.add_argument("--config", default=DEFAULT_CONFIG, help="Config file path")
+    sleep_parser.add_argument("--config", default=DEFAULT_CONFIG, help=_CONFIG_HELP)
 
     # -- wake subcommand ---------------------------------------------------
     wake_parser = sub.add_parser("wake", help="Resume paused agent(s)")
     wake_parser.add_argument("nick", nargs="?", help="Agent nick to resume")
     wake_parser.add_argument("--all", action="store_true", help="Resume all agents")
-    wake_parser.add_argument("--config", default=DEFAULT_CONFIG, help="Config file path")
+    wake_parser.add_argument("--config", default=DEFAULT_CONFIG, help=_CONFIG_HELP)
 
     # -- skills subcommand -------------------------------------------------
     skills_parser = sub.add_parser("skills", help="Install IRC skills for AI agents")
@@ -322,22 +323,22 @@ def _build_parser() -> argparse.ArgumentParser:
     bot_create.add_argument("--template", default=None, help="Message template")
     bot_create.add_argument("--dm-owner", action="store_true", help="DM the owner on trigger")
     bot_create.add_argument("--description", default="", help="Bot description")
-    bot_create.add_argument("--config", default=DEFAULT_CONFIG, help="Config file path")
+    bot_create.add_argument("--config", default=DEFAULT_CONFIG, help=_CONFIG_HELP)
 
     bot_start = bot_sub.add_parser("start", help="Start a bot")
     bot_start.add_argument("name", help="Bot name")
-    bot_start.add_argument("--config", default=DEFAULT_CONFIG, help="Config file path")
+    bot_start.add_argument("--config", default=DEFAULT_CONFIG, help=_CONFIG_HELP)
 
     bot_stop = bot_sub.add_parser("stop", help="Stop a bot")
     bot_stop.add_argument("name", help="Bot name")
-    bot_stop.add_argument("--config", default=DEFAULT_CONFIG, help="Config file path")
+    bot_stop.add_argument("--config", default=DEFAULT_CONFIG, help=_CONFIG_HELP)
 
     bot_list = bot_sub.add_parser("list", help="List bots")
     bot_list.add_argument("owner", nargs="?", default=None, help="Filter by owner nick")
 
     bot_inspect = bot_sub.add_parser("inspect", help="Show bot details")
     bot_inspect.add_argument("name", help="Bot name")
-    bot_inspect.add_argument("--config", default=DEFAULT_CONFIG, help="Config file path")
+    bot_inspect.add_argument("--config", default=DEFAULT_CONFIG, help=_CONFIG_HELP)
 
     # -- console subcommand ------------------------------------------------
     console_parser = sub.add_parser("console", help="Interactive admin console")
@@ -350,7 +351,7 @@ def _build_parser() -> argparse.ArgumentParser:
     console_parser.add_argument(
         "--config",
         default=DEFAULT_CONFIG,
-        help="Config file path",
+        help=_CONFIG_HELP,
     )
 
     return parser
