@@ -176,3 +176,57 @@ def add_agent_to_config(
     config.agents.append(agent)
     save_config(path, config)
     return config
+
+
+def rename_server(
+    path: str | Path,
+    new_name: str,
+) -> tuple[str, list[tuple[str, str]]]:
+    """Rename the server and update all agent nick prefixes.
+
+    Returns (old_name, [(old_nick, new_nick), ...]).
+    """
+    config = load_config_or_default(path)
+    old_name = config.server.name
+
+    if old_name == new_name:
+        return old_name, []
+
+    config.server.name = new_name
+
+    renamed: list[tuple[str, str]] = []
+    prefix = f"{old_name}-"
+    for agent in config.agents:
+        if agent.nick.startswith(prefix):
+            old_nick = agent.nick
+            agent.nick = f"{new_name}-{agent.nick[len(prefix):]}"
+            renamed.append((old_nick, agent.nick))
+
+    save_config(path, config)
+    return old_name, renamed
+
+
+def rename_agent(
+    path: str | Path,
+    old_nick: str,
+    new_nick: str,
+) -> None:
+    """Rename an agent's nick in the config.
+
+    Raises ValueError if old_nick is not found or new_nick already exists.
+    """
+    config = load_config_or_default(path)
+
+    # Check new nick doesn't collide
+    for agent in config.agents:
+        if agent.nick == new_nick:
+            raise ValueError(f"agent with nick {new_nick!r} already exists in config")
+
+    # Find and rename
+    for agent in config.agents:
+        if agent.nick == old_nick:
+            agent.nick = new_nick
+            save_config(path, config)
+            return
+
+    raise ValueError(f"agent {old_nick!r} not found in config")

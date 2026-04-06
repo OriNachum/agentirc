@@ -136,6 +136,12 @@ def _build_parser() -> argparse.ArgumentParser:
     srv_default = server_sub.add_parser("default", help="Set default server")
     srv_default.add_argument("name", help="Server name to set as default")
 
+    srv_rename = server_sub.add_parser(
+        "rename", help="Rename the server (updates config and agent nicks)"
+    )
+    srv_rename.add_argument("new_name", help="New server name")
+    srv_rename.add_argument("--config", default=DEFAULT_CONFIG, help="Config file path")
+
     # -- create / join subcommands -----------------------------------------
     # 'create' registers an agent definition; 'join' adds it to the mesh.
     # 'init' is a deprecated alias for 'create'.
@@ -168,6 +174,18 @@ def _build_parser() -> argparse.ArgumentParser:
     init_parser = sub.add_parser("init", help=argparse.SUPPRESS)
     for flag, kwargs in _agent_args:
         init_parser.add_argument(flag, **kwargs)
+
+    # -- rename subcommand -------------------------------------------------
+    rename_parser = sub.add_parser("rename", help="Rename an agent (same server)")
+    rename_parser.add_argument("nick", help="Current agent nick (e.g. spark-culture)")
+    rename_parser.add_argument("new_name", help="New agent name suffix (e.g. claude)")
+    rename_parser.add_argument("--config", default=DEFAULT_CONFIG, help="Config file path")
+
+    # -- assign subcommand -------------------------------------------------
+    assign_parser = sub.add_parser("assign", help="Move an agent to a different server")
+    assign_parser.add_argument("nick", help="Current agent nick (e.g. culture-culture)")
+    assign_parser.add_argument("server", help="Target server name (e.g. spark)")
+    assign_parser.add_argument("--config", default=DEFAULT_CONFIG, help="Config file path")
 
     # -- start subcommand --------------------------------------------------
     start_parser = sub.add_parser("start", help="Start agent daemon(s)")
@@ -357,6 +375,8 @@ def main() -> None:
             "create": _cmd_init,
             "join": _cmd_join,
             "init": _cmd_init_deprecated,
+            "rename": _cmd_rename,
+            "assign": _cmd_assign,
             "start": _cmd_start,
             "stop": _cmd_stop,
             "status": _cmd_status,
@@ -492,6 +512,40 @@ def _cmd_server(args: argparse.Namespace) -> None:
 
         write_default_server(args.name)
         print(f"Default server set to '{args.name}'")
+    elif args.server_command == "rename":
+        _server_rename(args)
+
+
+def _server_rename(args: argparse.Namespace) -> None:
+    """Rename the server: update config, agent nicks, and PID files."""
+    from culture.clients.claude.config import rename_server
+    from culture.pidfile import read_default_server, rename_pid, write_default_server
+
+    new_name = args.new_name
+    old_name, renamed = rename_server(args.config, new_name)
+
+    if old_name == new_name:
+        print(f"Server is already named '{new_name}'")
+        return
+
+    # Rename PID/port files for the server daemon
+    rename_pid(f"server-{old_name}", f"server-{new_name}")
+
+    # Rename PID files for agents
+    for old_nick, new_nick in renamed:
+        rename_pid(f"agent-{old_nick}", f"agent-{new_nick}")
+
+    # Update default server if it pointed to the old name
+    if read_default_server() == old_name:
+        write_default_server(new_name)
+
+    print(f"Server renamed: {old_name} → {new_name}")
+    for old_nick, new_nick in renamed:
+        print(f"  Agent: {old_nick} → {new_nick}")
+
+    if renamed:
+        print()
+        print("Restart running agents for the new nicks to take effect.")
 
 
 def _wait_for_port(
@@ -838,6 +892,71 @@ def _cmd_init(args: argparse.Namespace) -> None:
     print()
     print(f"Start with: culture start {full_nick}")
     print(f"Or join the mesh: culture join {full_nick}")
+
+
+def _cmd_rename(args: argparse.Namespace) -> None:
+    """Rename an agent's suffix within the same server."""
+    from culture.clients.claude.config import rename_agent
+    from culture.pidfile import rename_pid
+
+    old_nick = args.nick
+    # Extract current server prefix
+    if "-" not in old_nick:
+        print(f"Invalid nick format: {old_nick!r} (expected <server>-<name>)", file=sys.stderr)
+        sys.exit(1)
+
+    server_prefix = old_nick.rsplit("-", 1)[0]
+    new_nick = f"{server_prefix}-{args.new_name}"
+
+    if old_nick == new_nick:
+        print(f"Agent is already named '{old_nick}'")
+        return
+
+    try:
+        rename_agent(args.config, old_nick, new_nick)
+    except ValueError as exc:
+        print(str(exc), file=sys.stderr)
+        sys.exit(1)
+
+    rename_pid(f"agent-{old_nick}", f"agent-{new_nick}")
+
+    print(f"Agent renamed: {old_nick} → {new_nick}")
+    print()
+    print("Restart the agent for the new nick to take effect:")
+    print(f"  culture stop {old_nick}   # if still running under old name")
+    print(f"  culture start {new_nick}")
+
+
+def _cmd_assign(args: argparse.Namespace) -> None:
+    """Move an agent to a different server (change nick prefix)."""
+    from culture.clients.claude.config import rename_agent
+    from culture.pidfile import rename_pid
+
+    old_nick = args.nick
+    if "-" not in old_nick:
+        print(f"Invalid nick format: {old_nick!r} (expected <server>-<name>)", file=sys.stderr)
+        sys.exit(1)
+
+    suffix = old_nick.rsplit("-", 1)[1]
+    new_nick = f"{args.server}-{suffix}"
+
+    if old_nick == new_nick:
+        print(f"Agent already belongs to server '{args.server}'")
+        return
+
+    try:
+        rename_agent(args.config, old_nick, new_nick)
+    except ValueError as exc:
+        print(str(exc), file=sys.stderr)
+        sys.exit(1)
+
+    rename_pid(f"agent-{old_nick}", f"agent-{new_nick}")
+
+    print(f"Agent reassigned: {old_nick} → {new_nick}")
+    print()
+    print("Restart the agent for the new nick to take effect:")
+    print(f"  culture stop {old_nick}   # if still running under old name")
+    print(f"  culture start {new_nick}")
 
 
 # -----------------------------------------------------------------------
