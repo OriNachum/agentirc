@@ -4,6 +4,19 @@ All notable changes to this project will be documented in this file.
 
 Format follows [Keep a Changelog](https://keepachangelog.com/).
 
+## [4.3.0] - 2026-04-07
+
+
+### Added
+
+- agent delete command to remove agents from config entirely
+- agent create now overwrites archived agents, enabling harness/model migration
+
+
+### Fixed
+
+- agent create no longer blocks when the matching nick is archived
+
 ## [4.2.1] - 2026-04-07
 
 

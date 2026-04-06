@@ -248,3 +248,20 @@ def rename_agent(
             return
 
     raise ValueError(f"agent {old_nick!r} not found in config")
+
+
+def remove_agent(
+    path: str | Path,
+    nick: str,
+) -> None:
+    """Remove an agent from config entirely.
+
+    Raises ValueError if the agent is not found.
+    """
+    config = load_config_or_default(path)
+    for i, agent in enumerate(config.agents):
+        if agent.nick == nick:
+            config.agents.pop(i)
+            save_config(path, config)
+            return
+    raise ValueError(f"agent {nick!r} not found in config")

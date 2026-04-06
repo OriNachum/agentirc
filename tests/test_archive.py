@@ -434,3 +434,163 @@ def test_archive_preserves_other_fields():
         assert agent.tags == ["core", "main"]
     finally:
         shutil.rmtree(tmpdir)
+
+
+# -----------------------------------------------------------------------
+# Config-level: remove_agent
+# -----------------------------------------------------------------------
+
+
+def test_remove_agent():
+    """remove_agent removes the agent from config entirely."""
+    from culture.clients.claude.config import (
+        AgentConfig,
+        DaemonConfig,
+        ServerConnConfig,
+        load_config,
+        remove_agent,
+        save_config,
+    )
+
+    tmpdir = tempfile.mkdtemp()
+    try:
+        path = os.path.join(tmpdir, "agents.yaml")
+        save_config(
+            path,
+            DaemonConfig(
+                server=ServerConnConfig(name="spark"),
+                agents=[
+                    AgentConfig(nick="spark-claude", directory="/tmp/a", channels=["#general"]),
+                    AgentConfig(nick="spark-ori", directory="/tmp/b", channels=["#dev"]),
+                ],
+            ),
+        )
+
+        remove_agent(path, "spark-claude")
+
+        loaded = load_config(path)
+        assert len(loaded.agents) == 1
+        assert loaded.agents[0].nick == "spark-ori"
+    finally:
+        shutil.rmtree(tmpdir)
+
+
+def test_remove_agent_not_found():
+    """remove_agent raises ValueError for unknown nick."""
+    from culture.clients.claude.config import (
+        DaemonConfig,
+        ServerConnConfig,
+        remove_agent,
+        save_config,
+    )
+
+    tmpdir = tempfile.mkdtemp()
+    try:
+        path = os.path.join(tmpdir, "agents.yaml")
+        save_config(
+            path,
+            DaemonConfig(server=ServerConnConfig(name="spark"), agents=[]),
+        )
+
+        with pytest.raises(ValueError, match="not found"):
+            remove_agent(path, "spark-nonexistent")
+    finally:
+        shutil.rmtree(tmpdir)
+
+
+# -----------------------------------------------------------------------
+# Config-level: create overwrites archived agent
+# -----------------------------------------------------------------------
+
+
+def test_create_overwrites_archived_agent():
+    """Creating an agent that is archived replaces it with the new config."""
+    from culture.clients.claude.config import (
+        AgentConfig,
+        DaemonConfig,
+        ServerConnConfig,
+        add_agent_to_config,
+        archive_agent,
+        load_config,
+        remove_agent,
+        save_config,
+    )
+
+    tmpdir = tempfile.mkdtemp()
+    try:
+        path = os.path.join(tmpdir, "agents.yaml")
+        save_config(
+            path,
+            DaemonConfig(
+                server=ServerConnConfig(name="spark"),
+                agents=[
+                    AgentConfig(
+                        nick="spark-daria",
+                        agent="claude",
+                        directory="/tmp/daria",
+                        channels=["#general"],
+                    ),
+                ],
+            ),
+        )
+
+        # Archive, then remove and re-add with different backend
+        archive_agent(path, "spark-daria", reason="switching backend")
+        remove_agent(path, "spark-daria")
+
+        new_agent = AgentConfig(
+            nick="spark-daria",
+            agent="acp",
+            directory="/tmp/daria",
+            channels=["#general"],
+        )
+        add_agent_to_config(path, new_agent, server_name="spark")
+
+        loaded = load_config(path)
+        assert len(loaded.agents) == 1
+        agent = loaded.agents[0]
+        assert agent.nick == "spark-daria"
+        assert agent.agent == "acp"
+        assert agent.archived is False
+    finally:
+        shutil.rmtree(tmpdir)
+
+
+def test_create_blocked_by_active_agent():
+    """add_agent_to_config raises ValueError when a non-archived agent exists."""
+    from culture.clients.claude.config import (
+        AgentConfig,
+        DaemonConfig,
+        ServerConnConfig,
+        add_agent_to_config,
+        save_config,
+    )
+
+    tmpdir = tempfile.mkdtemp()
+    try:
+        path = os.path.join(tmpdir, "agents.yaml")
+        save_config(
+            path,
+            DaemonConfig(
+                server=ServerConnConfig(name="spark"),
+                agents=[
+                    AgentConfig(
+                        nick="spark-daria",
+                        agent="claude",
+                        directory="/tmp/daria",
+                        channels=["#general"],
+                    ),
+                ],
+            ),
+        )
+
+        new_agent = AgentConfig(
+            nick="spark-daria",
+            agent="acp",
+            directory="/tmp/daria",
+            channels=["#general"],
+        )
+        with pytest.raises(ValueError, match="already exists"):
+            add_agent_to_config(path, new_agent, server_name="spark")
+    finally:
+        shutil.rmtree(tmpdir)

@@ -238,6 +238,51 @@ per-file (no list to search through).
 - `test_start_refuses_archived_server` -- verify error message
 - `test_start_all_skips_archived` -- verify `--all` only starts active agents
 
+## Agent Deletion and Create-Overwrite
+
+### Problem
+
+Once an agent is archived, there's no way to recreate it with a different
+backend or model. `culture agent create` blocks with "already exists in config"
+because the archived entry is still present. Users must manually edit
+`agents.yaml` to change an agent's harness.
+
+### Delete Command
+
+```
+culture agent delete <nick> [--config PATH]
+```
+
+Removes an agent from config entirely. Stops the agent if running.
+
+### Create Overwrites Archived Agents
+
+`culture agent create` now detects when the matching agent is archived and
+automatically replaces it:
+
+```
+$ culture agent archive spark-daria
+Agent archived: spark-daria
+
+$ culture agent create --server spark --nick daria --agent acp --acp-command opencode
+Replacing archived agent 'spark-daria'
+Agent created: spark-daria
+  ...
+```
+
+Non-archived agents still block `create` with the existing error. This is the
+primary mechanism for moving an agent to a different harness or model.
+
+### Config Layer
+
+```python
+def remove_agent(path, nick):
+    """Remove an agent from config entirely. Raises ValueError if not found."""
+```
+
+Added to all backend config files (`claude`, `acp`, `codex`, `copilot`) and
+`packages/agent-harness/config.py`.
+
 ## Verification
 
 1. Create test agents: `culture agent create --nick test1 && culture agent create --nick test2`
