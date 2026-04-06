@@ -70,6 +70,12 @@ culture stop <old-nick>
 culture start <new-nick>
 ```
 
+## Protocol
+
+No new IRC protocol changes. These commands only modify the local
+`agents.yaml` config and PID tracking files. The IRC server and agents
+must be restarted for the new nicks to take effect on the wire.
+
 ## Custom config path
 
 All commands accept `--config`:

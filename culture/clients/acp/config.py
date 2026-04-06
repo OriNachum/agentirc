@@ -194,15 +194,29 @@ def rename_server(
     if old_name == new_name:
         return old_name, []
 
+    # Plan renames and check for collisions before mutating
+    prefix = f"{old_name}-"
+    plan: list[tuple[int, str, str]] = []
+    for i, agent in enumerate(config.agents):
+        if agent.nick.startswith(prefix):
+            new_nick = f"{new_name}-{agent.nick[len(prefix):]}"
+            plan.append((i, agent.nick, new_nick))
+
+    planned_nicks = {new_nick for _, _, new_nick in plan}
+    existing_nicks = {a.nick for a in config.agents} - {old for _, old, _ in plan}
+    collisions = planned_nicks & existing_nicks
+    if collisions:
+        raise ValueError(
+            f"renaming server {old_name!r} to {new_name!r} would create "
+            f"duplicate nick(s): {', '.join(sorted(collisions))}"
+        )
+
     config.server.name = new_name
 
     renamed: list[tuple[str, str]] = []
-    prefix = f"{old_name}-"
-    for agent in config.agents:
-        if agent.nick.startswith(prefix):
-            old_nick = agent.nick
-            agent.nick = f"{new_name}-{agent.nick[len(prefix):]}"
-            renamed.append((old_nick, agent.nick))
+    for i, old_nick, new_nick in plan:
+        config.agents[i].nick = new_nick
+        renamed.append((old_nick, new_nick))
 
     save_config(path, config)
     return old_name, renamed

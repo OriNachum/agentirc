@@ -518,11 +518,26 @@ def _cmd_server(args: argparse.Namespace) -> None:
 
 def _server_rename(args: argparse.Namespace) -> None:
     """Rename the server: update config, agent nicks, and PID files."""
-    from culture.clients.claude.config import rename_server
-    from culture.pidfile import read_default_server, rename_pid, write_default_server
+    from culture.clients.claude.config import rename_server, sanitize_agent_name
+    from culture.pidfile import (
+        is_process_alive,
+        read_default_server,
+        read_pid,
+        rename_pid,
+        write_default_server,
+    )
 
-    new_name = args.new_name
-    old_name, renamed = rename_server(args.config, new_name)
+    try:
+        new_name = sanitize_agent_name(args.new_name)
+    except ValueError:
+        print(f"Invalid server name: {args.new_name!r}", file=sys.stderr)
+        sys.exit(1)
+
+    try:
+        old_name, renamed = rename_server(args.config, new_name)
+    except ValueError as exc:
+        print(str(exc), file=sys.stderr)
+        sys.exit(1)
 
     if old_name == new_name:
         print(f"Server is already named '{new_name}'")
@@ -543,9 +558,19 @@ def _server_rename(args: argparse.Namespace) -> None:
     for old_nick, new_nick in renamed:
         print(f"  Agent: {old_nick} → {new_nick}")
 
+    # Check if the server process is still running
+    server_pid = read_pid(f"server-{new_name}")
+    server_running = server_pid and is_process_alive(server_pid)
+
+    print()
+    if server_running:
+        print("The server is still running under the old name.")
+        print("Restart it for the rename to take effect:")
+        print(f"  culture server stop --name {new_name}")
+        print(f"  culture server start --name {new_name}")
     if renamed:
-        print()
-        print("Restart running agents for the new nicks to take effect.")
+        print("Restart agents for the new nicks to take effect:")
+        print("  culture stop --all && culture start --all")
 
 
 def _wait_for_port(
@@ -896,17 +921,32 @@ def _cmd_init(args: argparse.Namespace) -> None:
 
 def _cmd_rename(args: argparse.Namespace) -> None:
     """Rename an agent's suffix within the same server."""
-    from culture.clients.claude.config import rename_agent
+    from culture.clients.claude.config import (
+        load_config_or_default,
+        rename_agent,
+        sanitize_agent_name,
+    )
     from culture.pidfile import rename_pid
 
+    config = load_config_or_default(args.config)
     old_nick = args.nick
-    # Extract current server prefix
-    if "-" not in old_nick:
-        print(f"Invalid nick format: {old_nick!r} (expected <server>-<name>)", file=sys.stderr)
+    server_name = config.server.name
+    expected_prefix = f"{server_name}-"
+
+    if not old_nick.startswith(expected_prefix):
+        print(
+            f"Agent '{old_nick}' does not belong to server '{server_name}'",
+            file=sys.stderr,
+        )
         sys.exit(1)
 
-    server_prefix = old_nick.rsplit("-", 1)[0]
-    new_nick = f"{server_prefix}-{args.new_name}"
+    try:
+        new_suffix = sanitize_agent_name(args.new_name)
+    except ValueError:
+        print(f"Invalid agent name: {args.new_name!r}", file=sys.stderr)
+        sys.exit(1)
+
+    new_nick = f"{server_name}-{new_suffix}"
 
     if old_nick == new_nick:
         print(f"Agent is already named '{old_nick}'")
@@ -929,19 +969,37 @@ def _cmd_rename(args: argparse.Namespace) -> None:
 
 def _cmd_assign(args: argparse.Namespace) -> None:
     """Move an agent to a different server (change nick prefix)."""
-    from culture.clients.claude.config import rename_agent
+    from culture.clients.claude.config import (
+        load_config_or_default,
+        rename_agent,
+        sanitize_agent_name,
+    )
     from culture.pidfile import rename_pid
 
+    config = load_config_or_default(args.config)
     old_nick = args.nick
-    if "-" not in old_nick:
-        print(f"Invalid nick format: {old_nick!r} (expected <server>-<name>)", file=sys.stderr)
+    server_name = config.server.name
+    expected_prefix = f"{server_name}-"
+
+    if not old_nick.startswith(expected_prefix):
+        print(
+            f"Agent '{old_nick}' does not belong to server '{server_name}'",
+            file=sys.stderr,
+        )
         sys.exit(1)
 
-    suffix = old_nick.rsplit("-", 1)[1]
-    new_nick = f"{args.server}-{suffix}"
+    suffix = old_nick[len(expected_prefix) :]
+
+    try:
+        new_server = sanitize_agent_name(args.server)
+    except ValueError:
+        print(f"Invalid server name: {args.server!r}", file=sys.stderr)
+        sys.exit(1)
+
+    new_nick = f"{new_server}-{suffix}"
 
     if old_nick == new_nick:
-        print(f"Agent already belongs to server '{args.server}'")
+        print(f"Agent already belongs to server '{new_server}'")
         return
 
     try:

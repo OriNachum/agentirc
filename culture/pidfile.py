@@ -147,7 +147,8 @@ def write_default_server(name: str) -> None:
 def rename_pid(old_name: str, new_name: str) -> bool:
     """Rename a PID file and its associated port file.
 
-    Returns True if at least one file was renamed.
+    Best-effort: returns True if at least one file was renamed.
+    Logs warnings on failure instead of raising.
     """
     pid_dir = Path(PID_DIR)
     renamed = False
@@ -155,6 +156,9 @@ def rename_pid(old_name: str, new_name: str) -> bool:
         old_path = pid_dir / f"{_safe_name(old_name)}{suffix}"
         new_path = pid_dir / f"{_safe_name(new_name)}{suffix}"
         if old_path.exists():
-            old_path.rename(new_path)
-            renamed = True
+            try:
+                old_path.rename(new_path)
+                renamed = True
+            except OSError:
+                pass
     return renamed
