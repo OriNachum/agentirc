@@ -191,8 +191,10 @@ class IRCTransport:
             self.buffer.add(target, sender, text)
         else:
             self.buffer.add(f"DM:{sender}", sender, text)
-        if self.on_mention and f"@{self.nick}" in text:
-            self.on_mention(target, sender, text)
+        if self.on_mention:
+            short = self.nick.split("-", 1)[1] if "-" in self.nick else self.nick
+            if f"@{self.nick}" in text or f"@{short}" in text:
+                self.on_mention(target, sender, text)
 
     async def _on_notice(self, msg: Message) -> None:
         if len(msg.params) < 2:

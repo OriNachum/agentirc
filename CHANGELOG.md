@@ -4,6 +4,14 @@ All notable changes to this project will be documented in this file.
 
 Format follows [Keep a Changelog](https://keepachangelog.com/).
 
+## [4.1.0] - 2026-04-06
+
+
+### Added
+
+- Channel polling: agents periodically check channels for unread messages (configurable via poll_interval, default 5 minutes)
+- Nick alias matching: @culture now triggers spark-culture (short suffix matching)
+
 ## [4.0.0] - 2026-04-06
 
 

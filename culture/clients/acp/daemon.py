@@ -182,6 +182,9 @@ class ACPDaemon:
         # 7. Sleep scheduler background task
         self._sleep_task = asyncio.create_task(self._sleep_scheduler())
 
+        # 8. Channel poll background task
+        self._poll_task = asyncio.create_task(self._poll_loop())
+
         logger.info(
             "ACPDaemon started for %s (cmd=%s, socket=%s)",
             self.agent.nick,
@@ -191,6 +194,11 @@ class ACPDaemon:
 
     async def stop(self) -> None:
         """Cleanly shut down all components."""
+        if hasattr(self, "_poll_task") and self._poll_task:
+            self._poll_task.cancel()
+            await asyncio.gather(self._poll_task, return_exceptions=True)
+            self._poll_task = None
+
         if hasattr(self, "_sleep_task") and self._sleep_task:
             self._sleep_task.cancel()
             await asyncio.gather(self._sleep_task, return_exceptions=True)
@@ -263,6 +271,35 @@ class ACPDaemon:
                 raise
             except Exception:
                 logger.exception("Sleep scheduler error")
+
+    async def _poll_loop(self) -> None:
+        """Background task that periodically checks channels for unread messages."""
+        interval = self.config.poll_interval
+        if interval <= 0:
+            return
+        while True:
+            try:
+                await asyncio.sleep(interval)
+                if self._paused or not self._agent_runner or not self._agent_runner.is_running():
+                    continue
+                for channel in self.agent.channels:
+                    msgs = self._buffer.read(channel)
+                    if not msgs:
+                        continue
+                    lines = "\n".join(f"  <{m.nick}> {m.text}" for m in msgs)
+                    prompt = (
+                        f"[IRC Channel Poll: {channel}] Recent unread messages:\n"
+                        f"{lines}\n\n"
+                        f"Respond naturally if any messages need your attention."
+                    )
+                    self._mention_targets.append(channel)
+                    task = asyncio.create_task(self._agent_runner.send_prompt(prompt))
+                    self._background_tasks.add(task)
+                    task.add_done_callback(self._background_tasks.discard)
+            except asyncio.CancelledError:
+                raise
+            except Exception:
+                logger.exception("Poll loop error")
 
     async def _graceful_shutdown(self) -> None:
         """Trigger a graceful shutdown, signaling any waiting stop event."""
