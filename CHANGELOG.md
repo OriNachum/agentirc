@@ -4,6 +4,13 @@ All notable changes to this project will be documented in this file.
 
 Format follows [Keep a Changelog](https://keepachangelog.com/).
 
+## [4.1.3] - 2026-04-06
+
+
+### Fixed
+
+- mesh update now discovers and restarts all running servers instead of only the one in mesh.yaml
+
 ## [4.1.2] - 2026-04-06
 
 

@@ -108,6 +108,14 @@ def from_daemon_config(daemon_config: DaemonConfig) -> MeshConfig:
     return MeshConfig(server=server, agents=agents)
 
 
+def merge_links(target: MeshConfig, source_links: list[MeshLinkConfig]) -> None:
+    """Copy link configs from *source_links* into *target* if not already present."""
+    existing = {link.name for link in target.server.links}
+    for link in source_links:
+        if link.name not in existing:
+            target.server.links.append(link)
+
+
 def save_mesh_config(config: MeshConfig, path: str | Path = DEFAULT_MESH_PATH) -> None:
     """Serialize mesh config to YAML and write atomically."""
     path = Path(path)
