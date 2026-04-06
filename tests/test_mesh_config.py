@@ -11,6 +11,7 @@ from culture.mesh_config import (
     MeshServerConfig,
     from_daemon_config,
     load_mesh_config,
+    merge_links,
     save_mesh_config,
 )
 
@@ -153,3 +154,39 @@ def test_from_daemon_config_empty_agents():
     assert mesh.server.name == "test"
     assert mesh.server.port == 7000
     assert mesh.agents == []
+
+
+def test_merge_links_appends_missing():
+    """merge_links adds links not already present."""
+    target = MeshConfig(
+        server=MeshServerConfig(
+            name="spark",
+            links=[MeshLinkConfig(name="thor", host="1.2.3.4", port=6667)],
+        ),
+    )
+    source = [
+        MeshLinkConfig(name="orin", host="5.6.7.8", port=6668),
+    ]
+    merge_links(target, source)
+    assert len(target.server.links) == 2
+    assert target.server.links[1].name == "orin"
+
+
+def test_merge_links_skips_duplicates():
+    """merge_links does not duplicate links already present."""
+    target = MeshConfig(
+        server=MeshServerConfig(
+            name="spark",
+            links=[MeshLinkConfig(name="thor", host="1.2.3.4", port=6667)],
+        ),
+    )
+    source = [
+        MeshLinkConfig(name="thor", host="9.9.9.9", port=9999),
+        MeshLinkConfig(name="orin", host="5.6.7.8", port=6668),
+    ]
+    merge_links(target, source)
+    assert len(target.server.links) == 2
+    names = [l.name for l in target.server.links]
+    assert names == ["thor", "orin"]
+    # Original thor link is unchanged
+    assert target.server.links[0].host == "1.2.3.4"

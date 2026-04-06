@@ -549,23 +549,76 @@ def _restart_mesh_services(
                 check=False,
             )
 
-    print("\nUpdate complete. All services restarted.")
+    print()
+
+
+def _resolve_mesh_for_server(server_name: str, config_path: str):
+    """Find or build a MeshConfig for *server_name*.
+
+    Resolution order:
+    1. mesh.yaml — use directly if its server.name matches.
+    2. agents.yaml — build via from_daemon_config(), preserving host, port,
+       and links from the old mesh.yaml. Saves the updated mesh.yaml so
+       future runs are consistent.
+    """
+    from culture.mesh_config import (
+        from_daemon_config,
+        load_mesh_config,
+        merge_links,
+        save_mesh_config,
+    )
+
+    old_server = None
+    try:
+        old_mesh = load_mesh_config(config_path)
+        if old_mesh.server.name == server_name:
+            return old_mesh
+        old_server = old_mesh.server
+    except FileNotFoundError:
+        pass
+
+    if os.path.isfile(DEFAULT_CONFIG):
+        daemon_config = load_config(DEFAULT_CONFIG)
+        if daemon_config.server.name == server_name:
+            mesh = from_daemon_config(daemon_config)
+            if old_server is not None:
+                mesh.server.host = old_server.host
+                mesh.server.port = old_server.port
+                merge_links(mesh, old_server.links)
+            save_mesh_config(mesh, config_path)
+            return mesh
+
+    return None
 
 
 def _cmd_update(args: argparse.Namespace) -> None:
     from culture.mesh_config import load_mesh_config
-
-    try:
-        mesh = load_mesh_config(args.config)
-    except FileNotFoundError:
-        mesh = generate_mesh_from_agents(args.config)
-        if mesh is None:
-            sys.exit(1)
-
-    server_name = mesh.server.name
+    from culture.pidfile import list_servers
 
     if not _upgrade_culture_package(args):
         return
 
     culture_bin = shutil.which("culture") or "culture"
-    _restart_mesh_services(mesh, server_name, culture_bin, args.config, args.dry_run)
+
+    running = list_servers()
+
+    if running:
+        for srv in running:
+            mesh = _resolve_mesh_for_server(srv["name"], args.config)
+            if mesh is None:
+                print(
+                    f"  Warning: no config found for server '{srv['name']}', skipping",
+                    file=sys.stderr,
+                )
+                continue
+            _restart_mesh_services(mesh, srv["name"], culture_bin, args.config, args.dry_run)
+    else:
+        try:
+            mesh = load_mesh_config(args.config)
+        except FileNotFoundError:
+            mesh = generate_mesh_from_agents(args.config)
+            if mesh is None:
+                sys.exit(1)
+        _restart_mesh_services(mesh, mesh.server.name, culture_bin, args.config, args.dry_run)
+
+    print("Update complete. All services restarted.")
