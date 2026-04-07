@@ -28,7 +28,7 @@ class HistoryStore:
                 timestamp REAL NOT NULL
             )""")
         self._conn.execute(
-            "CREATE INDEX IF NOT EXISTS idx_history_channel_ts " "ON history(channel, timestamp)"
+            "CREATE INDEX IF NOT EXISTS idx_history_channel_ts ON history(channel, timestamp)"
         )
         self._conn.commit()
 
