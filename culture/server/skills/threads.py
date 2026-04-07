@@ -217,6 +217,32 @@ class ThreadsSkill(Skill):
             )
         )
 
+    async def _append_and_deliver_reply(
+        self,
+        client: Client,
+        channel: Channel,
+        channel_name: str,
+        thread: Thread,
+        thread_name: str,
+        text: str,
+    ) -> None:
+        """Append a reply message, deliver to channel, persist, and emit event."""
+        now = time.time()
+        thread.messages.append(ThreadMessage(nick=client.nick, text=text, timestamp=now))
+        if len(thread.messages) > thread.max_messages:
+            thread.messages = thread.messages[-thread.max_messages :]
+
+        prefixed = await self._deliver_thread_msg(client, channel, thread_name, text)
+        self._persist_thread(thread)
+        await self.server.emit_event(
+            Event(
+                type=EventType.THREAD_MESSAGE,
+                channel=channel_name,
+                nick=client.nick,
+                data={"text": prefixed, "thread": thread_name, "raw_text": text},
+            )
+        )
+
     async def _handle_reply(self, client: Client, msg: Message) -> None:
         # THREAD REPLY #channel thread-name :reply text
         if len(msg.params) < 4:
@@ -261,32 +287,8 @@ class ThreadsSkill(Skill):
             )
             return
 
-        # Append message (cap at max_messages)
-        now = time.time()
-        thread.messages.append(
-            ThreadMessage(
-                nick=client.nick,
-                text=text,
-                timestamp=now,
-            )
-        )
-        if len(thread.messages) > thread.max_messages:
-            thread.messages = thread.messages[-thread.max_messages :]
-
-        # Deliver prefixed PRIVMSG to channel members
-        prefixed = await self._deliver_thread_msg(client, channel, thread_name, text)
-
-        # Persist
-        self._persist_thread(thread)
-
-        # Emit event
-        await self.server.emit_event(
-            Event(
-                type=EventType.THREAD_MESSAGE,
-                channel=channel_name,
-                nick=client.nick,
-                data={"text": prefixed, "thread": thread_name, "raw_text": text},
-            )
+        await self._append_and_deliver_reply(
+            client, channel, channel_name, thread, thread_name, text
         )
 
     @staticmethod
@@ -399,6 +401,48 @@ class ThreadsSkill(Skill):
 
     # ---- THREADCLOSE (close / promote) ------------------------------------
 
+    async def _close_thread(
+        self,
+        client: Client,
+        channel: Channel,
+        channel_name: str,
+        thread: Thread,
+        thread_name: str,
+        summary: str | None,
+    ) -> None:
+        """Archive a thread, notify channel members, persist, and emit event."""
+        from culture.server.remote_client import RemoteClient
+
+        thread.archived = True
+        thread.summary = summary
+
+        n_participants = len(thread.participants)
+        n_messages = len(thread.messages)
+        summary_text = self._build_close_summary(thread_name, summary, n_participants, n_messages)
+        notice = Message(
+            prefix=self.server.config.name,
+            command="NOTICE",
+            params=[channel_name, summary_text],
+        )
+        for member in list(channel.members):
+            if not isinstance(member, RemoteClient):
+                await member.send(notice)
+
+        self._persist_thread(thread)
+        await self.server.emit_event(
+            Event(
+                type=EventType.THREAD_CLOSE,
+                channel=channel_name,
+                nick=client.nick,
+                data={
+                    "thread": thread_name,
+                    "summary": summary,
+                    "participants": n_participants,
+                    "messages": n_messages,
+                },
+            )
+        )
+
     async def _handle_threadclose(self, client: Client, msg: Message) -> None:
         # THREADCLOSE #channel thread-name :summary
         # THREADCLOSE PROMOTE #channel thread-name [#breakout-name]
@@ -435,42 +479,7 @@ class ThreadsSkill(Skill):
             )
             return
 
-        # Archive thread
-        thread.archived = True
-        thread.summary = summary
-
-        # Post summary NOTICE to parent channel
-        n_participants = len(thread.participants)
-        n_messages = len(thread.messages)
-        summary_text = self._build_close_summary(thread_name, summary, n_participants, n_messages)
-        notice = Message(
-            prefix=self.server.config.name,
-            command="NOTICE",
-            params=[channel_name, summary_text],
-        )
-        from culture.server.remote_client import RemoteClient
-
-        for member in list(channel.members):
-            if not isinstance(member, RemoteClient):
-                await member.send(notice)
-
-        # Persist
-        self._persist_thread(thread)
-
-        # Emit event
-        await self.server.emit_event(
-            Event(
-                type=EventType.THREAD_CLOSE,
-                channel=channel_name,
-                nick=client.nick,
-                data={
-                    "thread": thread_name,
-                    "summary": summary,  # raw summary text from user
-                    "participants": n_participants,
-                    "messages": n_messages,
-                },
-            )
-        )
+        await self._close_thread(client, channel, channel_name, thread, thread_name, summary)
 
     async def _validate_thread_access(
         self,
@@ -533,6 +542,46 @@ class ThreadsSkill(Skill):
             f"({n_participants} participants, {n_messages} messages)"
         )
 
+    async def _finalize_promote(
+        self,
+        client: Client,
+        channel: Channel,
+        channel_name: str,
+        thread: Thread,
+        thread_name: str,
+        breakout_name: str,
+    ) -> None:
+        """Archive the promoted thread, notify channel, persist, and emit event."""
+        from culture.server.remote_client import RemoteClient
+
+        thread.archived = True
+        thread.summary = f"Promoted to {breakout_name}"
+
+        notice = Message(
+            prefix=self.server.config.name,
+            command="NOTICE",
+            params=[channel_name, f"[thread:{thread_name}] promoted to {breakout_name}"],
+        )
+        for member in list(channel.members):
+            if not isinstance(member, RemoteClient):
+                await member.send(notice)
+
+        self._persist_thread(thread)
+        await self.server.emit_event(
+            Event(
+                type=EventType.THREAD_CLOSE,
+                channel=channel_name,
+                nick=client.nick,
+                data={
+                    "thread": thread_name,
+                    "promoted_to": breakout_name,
+                    "summary": thread.summary,
+                    "participants": len(thread.participants),
+                    "messages": len(thread.messages),
+                },
+            )
+        )
+
     async def _handle_promote(self, client: Client, msg: Message) -> None:
         # THREADCLOSE PROMOTE #channel thread-name [#breakout-name]
         if len(msg.params) < 3:
@@ -558,8 +607,7 @@ class ThreadsSkill(Skill):
             return
 
         # Determine breakout channel name and create it
-        channel_base = channel_name  # e.g. "#general"
-        breakout_name = custom_breakout or f"{channel_base}-{thread_name}"
+        breakout_name = custom_breakout or f"{channel_name}-{thread_name}"
 
         breakout = await self._create_breakout_channel(
             client, channel, thread, channel_name, thread_name, breakout_name
@@ -570,39 +618,8 @@ class ThreadsSkill(Skill):
         await self._populate_breakout(thread, breakout, breakout_name)
         await self._replay_thread_history(thread, breakout_name)
 
-        # Archive original thread
-        thread.archived = True
-        thread.summary = f"Promoted to {breakout_name}"
-
-        # Post promotion notice to parent channel
-        from culture.server.remote_client import RemoteClient
-
-        notice = Message(
-            prefix=self.server.config.name,
-            command="NOTICE",
-            params=[channel_name, f"[thread:{thread_name}] promoted to {breakout_name}"],
-        )
-        for member in list(channel.members):
-            if not isinstance(member, RemoteClient):
-                await member.send(notice)
-
-        # Persist
-        self._persist_thread(thread)
-
-        # Emit event
-        await self.server.emit_event(
-            Event(
-                type=EventType.THREAD_CLOSE,
-                channel=channel_name,
-                nick=client.nick,
-                data={
-                    "thread": thread_name,
-                    "promoted_to": breakout_name,
-                    "summary": thread.summary,
-                    "participants": len(thread.participants),
-                    "messages": len(thread.messages),
-                },
-            )
+        await self._finalize_promote(
+            client, channel, channel_name, thread, thread_name, breakout_name
         )
 
     async def _create_breakout_channel(

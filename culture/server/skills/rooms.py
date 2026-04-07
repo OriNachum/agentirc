@@ -2,6 +2,7 @@
 
 from __future__ import annotations
 
+import asyncio
 import time
 from typing import TYPE_CHECKING, Callable
 
@@ -224,6 +225,60 @@ class RoomsSkill(Skill):
             )
         )
 
+    @staticmethod
+    def _set_meta_purpose(channel, value: str, **_kw) -> str | None:
+        channel.purpose = value
+        return None
+
+    @staticmethod
+    def _set_meta_instructions(channel, value: str, **_kw) -> str | None:
+        channel.instructions = value
+        return None
+
+    async def _set_meta_tags(self, channel, value: str, **_kw) -> str | None:
+        old_tags = set(channel.tags)
+        channel.tags = [t.strip() for t in value.split(",") if t.strip()]
+        new_tags = set(channel.tags)
+        await self._on_room_tags_changed(channel, old_tags, new_tags)
+        return None
+
+    @staticmethod
+    def _set_meta_owner(channel, value: str, **_kw) -> str | None:
+        channel.owner = value
+        return None
+
+    @staticmethod
+    def _set_meta_persistent(channel, value: str, **_kw) -> str | None:
+        channel.persistent = value.lower() == "true"
+        return None
+
+    @staticmethod
+    def _set_meta_agent_limit(channel, value: str, **_kw) -> str | None:
+        try:
+            channel.agent_limit = int(value)
+        except ValueError:
+            return f"Invalid value for agent_limit: {value}"
+        return None
+
+    async def _apply_meta_update(self, channel, key: str, value: str) -> str | None:
+        """Apply a metadata update for the given key. Return an error message or None."""
+        _META_HANDLERS = {
+            "purpose": self._set_meta_purpose,
+            "instructions": self._set_meta_instructions,
+            "tags": self._set_meta_tags,
+            "owner": self._set_meta_owner,
+            "persistent": self._set_meta_persistent,
+            "agent_limit": self._set_meta_agent_limit,
+        }
+        handler = _META_HANDLERS.get(key)
+        if handler:
+            result = handler(channel, value)
+            if asyncio.iscoroutine(result):
+                return await result
+            return result
+        channel.extra_meta[key] = value
+        return None
+
     async def _update_roommeta(
         self, client: Client, channel, channel_name: str, key: str, value: str, read_only_keys: set
     ) -> None:
@@ -248,34 +303,16 @@ class RoomsSkill(Skill):
             )
             return
 
-        # Apply the update
-        if key == "purpose":
-            channel.purpose = value
-        elif key == "instructions":
-            channel.instructions = value
-        elif key == "tags":
-            old_tags = set(channel.tags)
-            channel.tags = [t.strip() for t in value.split(",") if t.strip()]
-            new_tags = set(channel.tags)
-            await self._on_room_tags_changed(channel, old_tags, new_tags)
-        elif key == "owner":
-            channel.owner = value
-        elif key == "persistent":
-            channel.persistent = value.lower() == "true"
-        elif key == "agent_limit":
-            try:
-                channel.agent_limit = int(value)
-            except ValueError:
-                await client.send(
-                    Message(
-                        prefix=self.server.config.name,
-                        command="NOTICE",
-                        params=[client.nick, f"Invalid value for agent_limit: {value}"],
-                    )
+        error = await self._apply_meta_update(channel, key, value)
+        if error:
+            await client.send(
+                Message(
+                    prefix=self.server.config.name,
+                    command="NOTICE",
+                    params=[client.nick, error],
                 )
-                return
-        else:
-            channel.extra_meta[key] = value
+            )
+            return
 
         await client.send(
             Message(
@@ -609,6 +646,34 @@ class RoomsSkill(Skill):
                 return candidate
             n += 1
 
+    async def _execute_archive(self, channel, channel_name: str, archive_name: str) -> None:
+        """Notify members, part them, and rename the channel to the archive name."""
+        notice_msg = Message(
+            prefix=self.server.config.name,
+            command="NOTICE",
+            params=[channel_name, f"{channel_name} is being archived as {archive_name}"],
+        )
+        for member in list(channel.members):
+            await member.send(notice_msg)
+
+        part_msg = Message(
+            prefix=self.server.config.name,
+            command="PART",
+            params=[channel_name, f"Room archived as {archive_name}"],
+        )
+        for member in list(channel.members):
+            await member.send(part_msg)
+            member.channels.discard(channel)
+
+        channel.members.clear()
+        channel.operators.clear()
+        channel.voiced.clear()
+
+        del self.server.channels[channel_name]
+        channel.name = archive_name
+        channel.archived = True
+        self.server.channels[archive_name] = channel
+
     async def _handle_roomarchive(self, client: Client, msg: Message) -> None:
         if not msg.params:
             await client.send_numeric(
@@ -648,42 +713,9 @@ class RoomsSkill(Skill):
             )
             return
 
-        # Determine archive name
         archive_name = self._next_archive_name(channel_name)
+        await self._execute_archive(channel, channel_name, archive_name)
 
-        # Notify all members before parting them
-        notice_msg = Message(
-            prefix=self.server.config.name,
-            command="NOTICE",
-            params=[
-                channel_name,
-                f"{channel_name} is being archived as {archive_name}",
-            ],
-        )
-        for member in list(channel.members):
-            await member.send(notice_msg)
-
-        # Part all members
-        part_msg = Message(
-            prefix=self.server.config.name,
-            command="PART",
-            params=[channel_name, f"Room archived as {archive_name}"],
-        )
-        for member in list(channel.members):
-            await member.send(part_msg)
-            member.channels.discard(channel)
-
-        channel.members.clear()
-        channel.operators.clear()
-        channel.voiced.clear()
-
-        # Rename: remove old entry, update channel object, add under new name
-        del self.server.channels[channel_name]
-        channel.name = archive_name
-        channel.archived = True
-        self.server.channels[archive_name] = channel
-
-        # Confirm to requester
         await client.send(
             Message(
                 prefix=self.server.config.name,
