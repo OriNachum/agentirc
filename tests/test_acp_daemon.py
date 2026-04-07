@@ -223,12 +223,14 @@ async def test_acp_runner_auth_session_failure_raises():
         "error": {"code": -1, "message": "authentication required"},
     }
 
-    async def fake_send_request(method, params=None, **kwargs):
+    def _route_request(method, params=None, **kwargs):
         if method == "initialize":
             return init_response
         if method == "session/new":
             return session_response
         return {}
+
+    fake_send_request = AsyncMock(side_effect=_route_request)
 
     fake_proc = MagicMock()
     fake_proc.stdin = MagicMock()
@@ -241,7 +243,7 @@ async def test_acp_runner_auth_session_failure_raises():
 
     mock_exec = AsyncMock(return_value=fake_proc)
 
-    with patch.object(runner, "_send_request", side_effect=fake_send_request):
+    with patch.object(runner, "_send_request", fake_send_request):
         with patch.object(runner, "_read_loop", return_value=None):
             with patch.object(runner, "_stderr_loop", return_value=None):
                 with patch(
