@@ -135,16 +135,39 @@ def dispatch(args: argparse.Namespace) -> None:
     elif args.server_command == "status":
         _server_status(args)
     elif args.server_command == "default":
-        from culture.pidfile import list_servers, write_default_server
+        from pathlib import Path
 
-        known = list_servers()
-        known_names = [s["name"] for s in known]
+        from culture.pidfile import PID_DIR, list_servers, write_default_server
+
+        from .shared.constants import DEFAULT_CONFIG
+
+        # Accept the name if: it matches a running server, has a PID file,
+        # or matches the configured server name.
+        known_running = {s["name"] for s in list_servers()}
+        pid_dir = Path(PID_DIR)
+        known_pids = set()
+        if pid_dir.exists():
+            prefix = "server-"
+            for p in pid_dir.glob(f"{prefix}*.pid"):
+                known_pids.add(p.stem[len(prefix) :])
+        known_names = known_running | known_pids
+
+        # Also accept the configured server name
+        try:
+            from culture.clients.claude.config import load_config_or_default
+
+            config = load_config_or_default(DEFAULT_CONFIG)
+            known_names.add(config.server.name)
+        except Exception:
+            pass
+
         if args.name not in known_names:
             print(f"Server '{args.name}' not found.", file=sys.stderr)
             if known_names:
-                print(f"Known servers: {', '.join(known_names)}", file=sys.stderr)
-            else:
-                print("No servers are currently running.", file=sys.stderr)
+                print(
+                    f"Known servers: {', '.join(sorted(known_names))}",
+                    file=sys.stderr,
+                )
             sys.exit(1)
         write_default_server(args.name)
         print(f"Default server set to '{args.name}'")

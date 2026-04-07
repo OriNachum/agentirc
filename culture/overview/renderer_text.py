@@ -2,7 +2,7 @@
 
 from __future__ import annotations
 
-from culture.cli.shared.formatting import relative_time as _relative_time
+from culture.formatting import relative_time as _relative_time
 
 from .model import Agent, MeshState, Message, Room
 

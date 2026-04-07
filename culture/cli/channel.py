@@ -55,9 +55,14 @@ def dispatch(args: argparse.Namespace) -> None:
         sys.exit(1)
     try:
         handler(args)
-    except (ConnectionError, ConnectionRefusedError, OSError) as exc:
+    except (ConnectionError, ConnectionRefusedError, TimeoutError, OSError) as exc:
         msg = str(exc)
-        if "Timed out" in msg or "Connection refused" in msg or "Connect call failed" in msg:
+        if (
+            "Timed out" in msg
+            or "Connection refused" in msg
+            or "Connect call failed" in msg
+            or not msg  # TimeoutError from asyncio often has empty message
+        ):
             print(
                 "Error: cannot connect to IRC server. Is the server running?\n"
                 "  Start it with: culture server start",
@@ -91,10 +96,6 @@ def _cmd_read(args: argparse.Namespace) -> None:
         sys.exit(1)
     observer = get_observer(args.config)
     channel = args.target if args.target.startswith("#") else f"#{args.target}"
-    channels = asyncio.run(observer.list_channels())
-    if channel not in channels:
-        print(f"Channel '{channel}' not found on server", file=sys.stderr)
-        sys.exit(1)
     messages = asyncio.run(observer.read_channel(channel, limit=args.limit))
 
     if not messages:
@@ -114,10 +115,6 @@ def _cmd_message(args: argparse.Namespace) -> None:
         sys.exit(1)
     observer = get_observer(args.config)
     target = args.target if args.target.startswith("#") else f"#{args.target}"
-    channels = asyncio.run(observer.list_channels())
-    if target not in channels:
-        print(f"Channel '{target}' not found on server", file=sys.stderr)
-        sys.exit(1)
     asyncio.run(observer.send_message(target, args.text))
     print(f"Sent to {target}")
 

@@ -167,7 +167,7 @@ class IRCObserver:
 
     @staticmethod
     def _parse_history_line(msg):
-        from culture.cli.shared.formatting import relative_time
+        from culture.formatting import relative_time
 
         if msg.command != "HISTORY":
             return None
