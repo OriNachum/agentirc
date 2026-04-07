@@ -4,6 +4,31 @@ All notable changes to this project will be documented in this file.
 
 Format follows [Keep a Changelog](https://keepachangelog.com/).
 
+## [4.3.6] - 2026-04-07
+
+
+### Changed
+
+- CLI module docstring updated with current subcommand sets (#147)
+
+
+### Fixed
+
+- agent message silently succeeds for nonexistent targets (#132)
+- channel message silently succeeds for nonexistent channels (#133)
+- agent sleep/wake error messages use wrong command names (#134)
+- server subcommands ignore default server, hardcode culture (#135)
+- agent start/stop inconsistent behavior with no nick argument (#137)
+- channel message and bot create accept empty strings (#138)
+- bot archive/unarchive missing --config flag (#139)
+- inconsistent error message casing in agent archive vs unarchive (#140)
+- channel commands show confusing timeout error when server is down (#141)
+- uncaught PackageNotFoundError in version fallback (#142)
+- culture --version flag not supported (#143)
+- agent/channel message silently succeeds for nonexistent or empty targets (#144)
+- channel read displays raw Unix timestamps instead of human-readable format (#145)
+- server default accepts nonexistent server names without validation (#146)
+
 ## [4.3.5] - 2026-04-07
 
 

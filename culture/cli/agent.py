@@ -591,10 +591,17 @@ def _resolve_agents_to_stop(config, args) -> list:
     if len(config.agents) == 0:
         print(NO_AGENTS_MSG, file=sys.stderr)
         sys.exit(1)
+    # Multiple agents: try to match by current working directory
+    cwd_real = os.path.realpath(os.getcwd())
+    cwd_matches = [a for a in config.agents if os.path.realpath(a.directory) == cwd_real]
+    if len(cwd_matches) == 1:
+        return cwd_matches
     print(
         "Multiple agents configured. Specify a nick or use --all.",
         file=sys.stderr,
     )
+    for a in config.agents:
+        print(f"  {a.nick}", file=sys.stderr)
     sys.exit(1)
 
 
@@ -763,13 +770,13 @@ def _cmd_assign(args: argparse.Namespace) -> None:
 # -----------------------------------------------------------------------
 
 
-def _resolve_ipc_targets(config, args, action_verb: str) -> list:
+def _resolve_ipc_targets(config, args, command_name: str) -> list:
     """Resolve which agents to send IPC messages to."""
     if args.nick and args.all:
         print("Cannot specify both nick and --all", file=sys.stderr)
         sys.exit(1)
     if not args.nick and not args.all:
-        print(f"Usage: culture agent {action_verb} <nick> or --all", file=sys.stderr)
+        print(f"Usage: culture agent {command_name} <nick> or --all", file=sys.stderr)
         sys.exit(1)
     if args.all:
         return config.agents
@@ -790,20 +797,22 @@ def _send_ipc(agent, msg_type: str, action_verb: str) -> None:
         print(f"{agent.nick}: failed (not running?)", file=sys.stderr)
 
 
-def _ipc_to_agents(args: argparse.Namespace, msg_type: str, action_verb: str) -> None:
+def _ipc_to_agents(
+    args: argparse.Namespace, msg_type: str, action_verb: str, command_name: str
+) -> None:
     """Send an IPC message (pause/resume) to one or all agents."""
     config = load_config_or_default(args.config)
-    targets = _resolve_ipc_targets(config, args, action_verb)
+    targets = _resolve_ipc_targets(config, args, command_name)
     for agent in targets:
         _send_ipc(agent, msg_type, action_verb)
 
 
 def _cmd_sleep(args: argparse.Namespace) -> None:
-    _ipc_to_agents(args, "pause", "paused")
+    _ipc_to_agents(args, "pause", "paused", "sleep")
 
 
 def _cmd_wake(args: argparse.Namespace) -> None:
-    _ipc_to_agents(args, "resume", "resumed")
+    _ipc_to_agents(args, "resume", "resumed", "wake")
 
 
 def _cmd_learn(args: argparse.Namespace) -> None:
@@ -838,6 +847,16 @@ def _cmd_learn(args: argparse.Namespace) -> None:
 
 
 def _cmd_message(args: argparse.Namespace) -> None:
+    if not args.target.strip():
+        print("Error: target nick cannot be empty", file=sys.stderr)
+        sys.exit(1)
+    if not args.text.strip():
+        print("Error: message text cannot be empty", file=sys.stderr)
+        sys.exit(1)
+    config = load_config_or_default(args.config)
+    if not config.get_agent(args.target):
+        print(f"Agent '{args.target}' not found in config", file=sys.stderr)
+        sys.exit(1)
     observer = get_observer(args.config)
     asyncio.run(observer.send_message(args.target, args.text))
     print(f"Sent to {args.target}")

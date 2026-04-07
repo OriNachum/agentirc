@@ -7,4 +7,7 @@ except PackageNotFoundError:
     try:
         __version__ = _v("agentirc-cli")
     except PackageNotFoundError:
-        __version__ = _v("agentirc")
+        try:
+            __version__ = _v("agentirc")
+        except PackageNotFoundError:
+            __version__ = "0.0.0-dev"

@@ -167,11 +167,17 @@ class IRCObserver:
 
     @staticmethod
     def _parse_history_line(msg):
+        from culture.formatting import relative_time
+
         if msg.command != "HISTORY":
             return None
         if len(msg.params) >= 4:
             entry_nick, ts, text = msg.params[1], msg.params[2], msg.params[3]
-            return f"[{ts}] <{entry_nick}> {text}"
+            try:
+                label = relative_time(float(ts))
+            except (ValueError, TypeError):
+                label = ts
+            return f"[{label}] <{entry_nick}> {text}"
         if len(msg.params) >= 3:
             return f"<{msg.params[1]}> {msg.params[2]}"
         return None

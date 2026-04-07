@@ -1,4 +1,4 @@
-"""Server subcommands: culture server {start,stop,status,default,rename}."""
+"""Server subcommands: culture server {start,stop,status,default,rename,archive,unarchive}."""
 
 from __future__ import annotations
 
@@ -14,6 +14,7 @@ import time
 from culture.pidfile import (
     is_culture_process,
     is_process_alive,
+    read_default_server,
     read_pid,
     remove_pid,
     write_pid,
@@ -32,13 +33,22 @@ logger = logging.getLogger("culture")
 
 NAME = "server"
 
+_DEFAULT_SERVER = "culture"
+
+
+def _resolve_server_name(args: argparse.Namespace) -> str:
+    """Resolve the server name from args, default server file, or fallback."""
+    if args.name is not None:
+        return args.name
+    return read_default_server() or _DEFAULT_SERVER
+
 
 def register(subparsers: argparse._SubParsersAction) -> None:
     server_parser = subparsers.add_parser("server", help="Manage the IRC server")
     server_sub = server_parser.add_subparsers(dest="server_command")
 
     srv_start = server_sub.add_parser("start", help="Start the IRC server daemon")
-    srv_start.add_argument("--name", default="culture", help=_SERVER_NAME_HELP)
+    srv_start.add_argument("--name", default=None, help=_SERVER_NAME_HELP)
     srv_start.add_argument("--host", default="0.0.0.0", help="Listen address")
     srv_start.add_argument("--port", type=int, default=6667, help="Listen port")
     srv_start.add_argument(
@@ -66,10 +76,10 @@ def register(subparsers: argparse._SubParsersAction) -> None:
     )
 
     srv_stop = server_sub.add_parser("stop", help="Stop the IRC server daemon")
-    srv_stop.add_argument("--name", default="culture", help=_SERVER_NAME_HELP)
+    srv_stop.add_argument("--name", default=None, help=_SERVER_NAME_HELP)
 
     srv_status = server_sub.add_parser("status", help="Check server daemon status")
-    srv_status.add_argument("--name", default="culture", help=_SERVER_NAME_HELP)
+    srv_status.add_argument("--name", default=None, help=_SERVER_NAME_HELP)
 
     srv_default = server_sub.add_parser("default", help="Set default server")
     srv_default.add_argument("name", help="Server name to set as default")
@@ -87,7 +97,7 @@ def register(subparsers: argparse._SubParsersAction) -> None:
     srv_archive = server_sub.add_parser(
         "archive", help="Archive the server and all its agents/bots"
     )
-    srv_archive.add_argument("--name", default="culture", help=_SERVER_NAME_HELP)
+    srv_archive.add_argument("--name", default=None, help=_SERVER_NAME_HELP)
     srv_archive.add_argument("--reason", default="", help="Reason for archiving")
     srv_archive.add_argument(
         "--config",
@@ -98,7 +108,7 @@ def register(subparsers: argparse._SubParsersAction) -> None:
     srv_unarchive = server_sub.add_parser(
         "unarchive", help="Restore an archived server and all its agents/bots"
     )
-    srv_unarchive.add_argument("--name", default="culture", help=_SERVER_NAME_HELP)
+    srv_unarchive.add_argument("--name", default=None, help=_SERVER_NAME_HELP)
     srv_unarchive.add_argument(
         "--config",
         default=DEFAULT_CONFIG,
@@ -114,6 +124,10 @@ def dispatch(args: argparse.Namespace) -> None:
         )
         sys.exit(1)
 
+    # Resolve --name for commands that use it (all except default/rename)
+    if args.server_command not in ("default", "rename") and hasattr(args, "name"):
+        args.name = _resolve_server_name(args)
+
     if args.server_command == "start":
         _server_start(args)
     elif args.server_command == "stop":
@@ -121,8 +135,40 @@ def dispatch(args: argparse.Namespace) -> None:
     elif args.server_command == "status":
         _server_status(args)
     elif args.server_command == "default":
-        from culture.pidfile import write_default_server
+        from pathlib import Path
 
+        from culture.pidfile import PID_DIR, list_servers, write_default_server
+
+        from .shared.constants import DEFAULT_CONFIG
+
+        # Accept the name if: it matches a running server, has a PID file,
+        # or matches the configured server name.
+        known_running = {s["name"] for s in list_servers()}
+        pid_dir = Path(PID_DIR)
+        known_pids = set()
+        if pid_dir.exists():
+            prefix = "server-"
+            for p in pid_dir.glob(f"{prefix}*.pid"):
+                known_pids.add(p.stem[len(prefix) :])
+        known_names = known_running | known_pids
+
+        # Also accept the configured server name
+        try:
+            from culture.clients.claude.config import load_config_or_default
+
+            config = load_config_or_default(DEFAULT_CONFIG)
+            known_names.add(config.server.name)
+        except Exception:
+            pass
+
+        if args.name not in known_names:
+            print(f"Server '{args.name}' not found.", file=sys.stderr)
+            if known_names:
+                print(
+                    f"Known servers: {', '.join(sorted(known_names))}",
+                    file=sys.stderr,
+                )
+            sys.exit(1)
         write_default_server(args.name)
         print(f"Default server set to '{args.name}'")
     elif args.server_command == "rename":

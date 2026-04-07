@@ -175,7 +175,7 @@ def add_agent_to_config(
     # Check for nick collision
     for existing in config.agents:
         if existing.nick == agent.nick:
-            raise ValueError(f"agent with nick {agent.nick!r} already exists in config")
+            raise ValueError(f"Agent with nick {agent.nick!r} already exists in config")
 
     config.agents.append(agent)
     save_config(path, config)
@@ -238,7 +238,7 @@ def rename_agent(
     # Check new nick doesn't collide
     for agent in config.agents:
         if agent.nick == new_nick:
-            raise ValueError(f"agent with nick {new_nick!r} already exists in config")
+            raise ValueError(f"Agent with nick {new_nick!r} already exists in config")
 
     # Find and rename
     for agent in config.agents:
@@ -247,7 +247,7 @@ def rename_agent(
             save_config(path, config)
             return
 
-    raise ValueError(f"agent {old_nick!r} not found in config")
+    raise ValueError(f"Agent {old_nick!r} not found in config")
 
 
 def remove_agent(
@@ -262,7 +262,7 @@ def remove_agent(
     """
     path = Path(path)
     if not path.exists():
-        raise ValueError(f"agent {nick!r} not found in config")
+        raise ValueError(f"Agent {nick!r} not found in config")
 
     with open(path) as f:
         raw = yaml.safe_load(f) or {}
@@ -274,4 +274,4 @@ def remove_agent(
             with open(path, "w") as f:
                 yaml.dump(raw, f, default_flow_style=False, sort_keys=False)
             return
-    raise ValueError(f"agent {nick!r} not found in config")
+    raise ValueError(f"Agent {nick!r} not found in config")

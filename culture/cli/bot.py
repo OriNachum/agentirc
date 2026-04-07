@@ -49,9 +49,11 @@ def register(subparsers: argparse._SubParsersAction) -> None:
     bot_archive = bot_sub.add_parser("archive", help="Archive a bot")
     bot_archive.add_argument("name", help="Bot name to archive")
     bot_archive.add_argument("--reason", default="", help="Reason for archiving")
+    bot_archive.add_argument("--config", default=DEFAULT_CONFIG, help=_CONFIG_HELP)
 
     bot_unarchive = bot_sub.add_parser("unarchive", help="Restore an archived bot")
     bot_unarchive.add_argument("name", help="Bot name to unarchive")
+    bot_unarchive.add_argument("--config", default=DEFAULT_CONFIG, help=_CONFIG_HELP)
 
 
 def dispatch(args: argparse.Namespace) -> None:
@@ -87,6 +89,9 @@ def dispatch(args: argparse.Namespace) -> None:
 def _bot_create(args: argparse.Namespace) -> None:
     from culture.bots.config import BOTS_DIR, BotConfig, save_bot_config
 
+    if not args.name.strip():
+        print("Error: bot name cannot be empty", file=sys.stderr)
+        sys.exit(1)
     name = args.name
     config = load_config_or_default(args.config)
     server_name = config.server.name

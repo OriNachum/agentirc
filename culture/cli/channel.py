@@ -50,11 +50,26 @@ def dispatch(args: argparse.Namespace) -> None:
         "who": _cmd_who,
     }
     handler = handlers.get(args.channel_command)
-    if handler:
-        handler(args)
-    else:
+    if not handler:
         print(f"Unknown channel command: {args.channel_command}", file=sys.stderr)
         sys.exit(1)
+    try:
+        handler(args)
+    except (ConnectionError, ConnectionRefusedError, TimeoutError, OSError) as exc:
+        msg = str(exc)
+        if (
+            "Timed out" in msg
+            or "Connection refused" in msg
+            or "Connect call failed" in msg
+            or not msg  # TimeoutError from asyncio often has empty message
+        ):
+            print(
+                "Error: cannot connect to IRC server. Is the server running?\n"
+                "  Start it with: culture server start",
+                file=sys.stderr,
+            )
+            sys.exit(1)
+        raise
 
 
 # -----------------------------------------------------------------------
@@ -76,6 +91,9 @@ def _cmd_list(args: argparse.Namespace) -> None:
 
 
 def _cmd_read(args: argparse.Namespace) -> None:
+    if not args.target.strip():
+        print("Error: channel name cannot be empty", file=sys.stderr)
+        sys.exit(1)
     observer = get_observer(args.config)
     channel = args.target if args.target.startswith("#") else f"#{args.target}"
     messages = asyncio.run(observer.read_channel(channel, limit=args.limit))
@@ -89,6 +107,12 @@ def _cmd_read(args: argparse.Namespace) -> None:
 
 
 def _cmd_message(args: argparse.Namespace) -> None:
+    if not args.target.strip():
+        print("Error: channel name cannot be empty", file=sys.stderr)
+        sys.exit(1)
+    if not args.text.strip():
+        print("Error: message text cannot be empty", file=sys.stderr)
+        sys.exit(1)
     observer = get_observer(args.config)
     target = args.target if args.target.startswith("#") else f"#{args.target}"
     asyncio.run(observer.send_message(target, args.text))
@@ -96,6 +120,9 @@ def _cmd_message(args: argparse.Namespace) -> None:
 
 
 def _cmd_who(args: argparse.Namespace) -> None:
+    if not args.target.strip():
+        print("Error: channel name cannot be empty", file=sys.stderr)
+        sys.exit(1)
     observer = get_observer(args.config)
     target = args.target
     nicks = asyncio.run(observer.who(target))

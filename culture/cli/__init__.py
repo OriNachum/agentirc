@@ -1,11 +1,11 @@
 """Unified CLI entry point for culture.
 
 Commands are organized into noun-based groups:
-    culture agent    {create,join,start,stop,status,rename,assign,sleep,wake,learn,message,read}
-    culture server   {start,stop,status,default,rename}
+    culture agent    {create,join,start,stop,status,rename,assign,sleep,wake,learn,message,read,archive,unarchive,delete}
+    culture server   {start,stop,status,default,rename,archive,unarchive}
     culture mesh     {overview,setup,update,console}
     culture channel  {list,read,message,who}
-    culture bot      {create,start,stop,list,inspect}
+    culture bot      {create,start,stop,list,inspect,archive,unarchive}
     culture skills   {install}
 """
 
@@ -15,6 +15,7 @@ import argparse
 import logging
 import sys
 
+from culture import __version__
 from culture.cli import agent, bot, channel, mesh, server, skills
 
 GROUPS = [agent, server, mesh, channel, bot, skills]
@@ -25,6 +26,7 @@ def _build_parser() -> argparse.ArgumentParser:
         prog="culture",
         description="culture — AI agent IRC mesh",
     )
+    parser.add_argument("--version", action="version", version=f"%(prog)s {__version__}")
     sub = parser.add_subparsers(dest="command")
     for group in GROUPS:
         group.register(sub)
