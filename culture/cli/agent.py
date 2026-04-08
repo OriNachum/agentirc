@@ -8,6 +8,7 @@ import logging
 import os
 import signal
 import sys
+from pathlib import Path
 
 from culture.clients.claude.config import (
     AgentConfig,
@@ -19,6 +20,14 @@ from culture.clients.claude.config import (
     remove_agent,
     sanitize_agent_name,
     unarchive_agent,
+)
+from culture.config import (
+    add_to_manifest,
+)
+from culture.config import load_config_or_default as load_server_config_or_default
+from culture.config import (
+    load_culture_yaml,
+    remove_from_manifest,
 )
 from culture.pidfile import (
     is_process_alive,
@@ -162,11 +171,26 @@ def register(subparsers: argparse._SubParsersAction) -> None:
     delete_parser.add_argument("nick", help="Agent nick to delete")
     delete_parser.add_argument("--config", default=DEFAULT_CONFIG, help=_CONFIG_HELP)
 
+    # -- register -------------------------------------------------------------
+    register_parser = agent_sub.add_parser("register", help="Register agent directory")
+    register_parser.add_argument(
+        "path", nargs="?", default=None, help="Directory containing culture.yaml (default: cwd)"
+    )
+    register_parser.add_argument(
+        "--suffix", default=None, help="Agent suffix (required for multi-agent culture.yaml)"
+    )
+    register_parser.add_argument("--config", default=DEFAULT_CONFIG, help=_CONFIG_HELP)
+
+    # -- unregister -----------------------------------------------------------
+    unregister_parser = agent_sub.add_parser("unregister", help="Unregister agent")
+    unregister_parser.add_argument("target", help="Agent suffix or full nick")
+    unregister_parser.add_argument("--config", default=DEFAULT_CONFIG, help=_CONFIG_HELP)
+
 
 def dispatch(args: argparse.Namespace) -> None:
     if not args.agent_command:
         print(
-            "Usage: culture agent {create|join|start|stop|status|rename|assign|sleep|wake|learn|message|read|archive|unarchive|delete}",
+            "Usage: culture agent {create|join|start|stop|status|rename|assign|sleep|wake|learn|message|read|archive|unarchive|delete|register|unregister}",
             file=sys.stderr,
         )
         sys.exit(1)
@@ -187,6 +211,8 @@ def dispatch(args: argparse.Namespace) -> None:
         "archive": _cmd_archive,
         "unarchive": _cmd_unarchive,
         "delete": _cmd_delete,
+        "register": _cmd_register,
+        "unregister": _cmd_unregister,
     }
     handler = handlers.get(args.agent_command)
     if handler:
@@ -933,3 +959,62 @@ def _cmd_delete(args: argparse.Namespace) -> None:
 
     remove_agent(args.config, args.nick)
     print(f"Agent deleted: {args.nick}")
+
+
+# -----------------------------------------------------------------------
+# Register / Unregister
+# -----------------------------------------------------------------------
+
+
+def _cmd_register(args: argparse.Namespace) -> None:
+    """Register a directory containing culture.yaml."""
+    directory = args.path if args.path else os.getcwd()
+    directory = str(Path(directory).resolve())
+
+    try:
+        agents = load_culture_yaml(directory)
+    except FileNotFoundError:
+        print(f"No culture.yaml found in {directory}", file=sys.stderr)
+        sys.exit(1)
+
+    if len(agents) > 1 and args.suffix is None:
+        print(
+            f"Multiple agents in {directory}/culture.yaml. " "Use --suffix to specify which one.",
+            file=sys.stderr,
+        )
+        print("Available suffixes:", file=sys.stderr)
+        for a in agents:
+            print(f"  {a.suffix}", file=sys.stderr)
+        sys.exit(1)
+
+    targets = agents if args.suffix is None else [a for a in agents if a.suffix == args.suffix]
+    if not targets:
+        print(f"Suffix {args.suffix!r} not found in culture.yaml", file=sys.stderr)
+        sys.exit(1)
+
+    config = load_server_config_or_default(args.config)
+    server_name = config.server.name
+
+    for agent in targets:
+        try:
+            add_to_manifest(args.config, agent.suffix, directory)
+        except ValueError as e:
+            print(f"Error: {e}", file=sys.stderr)
+            sys.exit(1)
+        print(f"Registered: {server_name}-{agent.suffix} at {directory}")
+
+
+def _cmd_unregister(args: argparse.Namespace) -> None:
+    """Remove an agent from the manifest."""
+    target = args.target
+    config = load_server_config_or_default(args.config)
+
+    prefix = f"{config.server.name}-"
+    suffix = target.removeprefix(prefix) if target.startswith(prefix) else target
+
+    try:
+        remove_from_manifest(args.config, suffix)
+    except ValueError as e:
+        print(f"Error: {e}", file=sys.stderr)
+        sys.exit(1)
+    print(f"Unregistered: {prefix}{suffix}")
