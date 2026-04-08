@@ -113,6 +113,68 @@ class ServerConfig:
 DaemonConfig = ServerConfig
 
 
+CULTURE_YAML = "culture.yaml"
+
+# Fields that are typed on AgentConfig (not extras)
+_KNOWN_AGENT_FIELDS = {f.name for f in AgentConfig.__dataclass_fields__.values()} - {
+    "nick",
+    "directory",
+    "extras",
+}
+
+
+def _parse_agent_entry(raw: dict, directory: str) -> AgentConfig:
+    """Parse a single agent entry from culture.yaml."""
+    known = {}
+    extras = {}
+    for k, v in raw.items():
+        if k in _KNOWN_AGENT_FIELDS:
+            known[k] = v
+        else:
+            extras[k] = v
+    agent = AgentConfig(**known, extras=extras, directory=directory)
+    return agent
+
+
+def load_culture_yaml(directory: str, suffix: str | None = None) -> list[AgentConfig]:
+    """Load agent definitions from a culture.yaml file.
+
+    Args:
+        directory: Path to directory containing culture.yaml.
+        suffix: If provided, return only the agent matching this suffix.
+
+    Returns:
+        List of AgentConfig objects with directory set.
+
+    Raises:
+        FileNotFoundError: If culture.yaml doesn't exist.
+        ValueError: If suffix is specified but not found.
+    """
+    path = Path(directory) / CULTURE_YAML
+    if not path.exists():
+        raise FileNotFoundError(f"No culture.yaml found at {path}")
+
+    with open(path) as f:
+        raw = yaml.safe_load(f) or {}
+
+    directory = str(Path(directory).resolve())
+
+    # Multi-agent format: top-level "agents" list
+    if "agents" in raw and isinstance(raw["agents"], list):
+        agents = [_parse_agent_entry(entry, directory) for entry in raw["agents"]]
+    else:
+        # Single-agent format: top-level fields
+        agents = [_parse_agent_entry(raw, directory)]
+
+    if suffix is not None:
+        filtered = [a for a in agents if a.suffix == suffix]
+        if not filtered:
+            raise ValueError(f"Agent with suffix {suffix!r} not found in {path}")
+        return filtered
+
+    return agents
+
+
 def sanitize_agent_name(dirname: str) -> str:
     """Sanitize a directory name into a valid agent/server name."""
     name = dirname.lower()

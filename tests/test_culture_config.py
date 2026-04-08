@@ -72,3 +72,105 @@ def test_daemon_config_alias():
     from culture.config import DaemonConfig, ServerConfig
 
     assert DaemonConfig is ServerConfig
+
+
+def test_load_culture_yaml_single_agent(tmp_path):
+    """Load single-agent culture.yaml."""
+    from culture.config import load_culture_yaml
+
+    culture_yaml = tmp_path / "culture.yaml"
+    culture_yaml.write_text("""\
+suffix: myagent
+backend: claude
+model: claude-opus-4-6
+channels: ["#general", "#dev"]
+thinking: medium
+system_prompt: "You are helpful."
+tags: [test]
+""")
+    agents = load_culture_yaml(str(tmp_path))
+    assert len(agents) == 1
+    assert agents[0].suffix == "myagent"
+    assert agents[0].backend == "claude"
+    assert agents[0].model == "claude-opus-4-6"
+    assert agents[0].channels == ["#general", "#dev"]
+    assert agents[0].thinking == "medium"
+    assert agents[0].system_prompt == "You are helpful."
+    assert agents[0].tags == ["test"]
+    assert agents[0].directory == str(tmp_path)
+
+
+def test_load_culture_yaml_multi_agent(tmp_path):
+    """Load multi-agent culture.yaml with agents list."""
+    from culture.config import load_culture_yaml
+
+    culture_yaml = tmp_path / "culture.yaml"
+    culture_yaml.write_text("""\
+agents:
+  - suffix: culture
+    backend: claude
+    model: claude-opus-4-6
+  - suffix: codex
+    backend: codex
+    model: gpt-5.4
+""")
+    agents = load_culture_yaml(str(tmp_path))
+    assert len(agents) == 2
+    assert agents[0].suffix == "culture"
+    assert agents[0].backend == "claude"
+    assert agents[1].suffix == "codex"
+    assert agents[1].backend == "codex"
+    assert agents[1].model == "gpt-5.4"
+
+
+def test_load_culture_yaml_by_suffix(tmp_path):
+    """Load specific agent from multi-agent culture.yaml."""
+    from culture.config import load_culture_yaml
+
+    culture_yaml = tmp_path / "culture.yaml"
+    culture_yaml.write_text("""\
+agents:
+  - suffix: culture
+    backend: claude
+  - suffix: codex
+    backend: codex
+""")
+    agents = load_culture_yaml(str(tmp_path), suffix="codex")
+    assert len(agents) == 1
+    assert agents[0].suffix == "codex"
+
+
+def test_load_culture_yaml_extras(tmp_path):
+    """Unknown fields stored in extras dict."""
+    from culture.config import load_culture_yaml
+
+    culture_yaml = tmp_path / "culture.yaml"
+    culture_yaml.write_text("""\
+suffix: daria
+backend: acp
+model: claude-sonnet-4-6
+acp_command: ["opencode", "acp"]
+custom_field: hello
+""")
+    agents = load_culture_yaml(str(tmp_path))
+    assert agents[0].acp_command == ["opencode", "acp"]
+    assert agents[0].extras["custom_field"] == "hello"
+
+
+def test_load_culture_yaml_missing_file(tmp_path):
+    """Missing culture.yaml raises FileNotFoundError."""
+    from culture.config import load_culture_yaml
+
+    with pytest.raises(FileNotFoundError):
+        load_culture_yaml(str(tmp_path))
+
+
+def test_load_culture_yaml_suffix_not_found(tmp_path):
+    """Requesting nonexistent suffix raises ValueError."""
+    from culture.config import load_culture_yaml
+
+    culture_yaml = tmp_path / "culture.yaml"
+    culture_yaml.write_text("suffix: culture\nbackend: claude\n")
+
+    with pytest.raises(ValueError, match="not found"):
+        load_culture_yaml(str(tmp_path), suffix="nonexistent")
