@@ -109,3 +109,18 @@ async def test_ipc_send_rejects_whitespace_only_message(daemon):
     resp = await daemon._ipc_irc_send("req-ws", {"channel": "#general", "message": "   "})
     assert resp["ok"] is False
     assert "message" in resp["error"].lower()
+
+
+@pytest.mark.asyncio
+async def test_ipc_send_rejects_unjoined_channel(daemon):
+    """Sending to a channel the agent hasn't joined should fail."""
+    from unittest.mock import AsyncMock, MagicMock
+
+    daemon._transport = MagicMock()
+    daemon._transport.channels = ["#general"]
+    daemon._transport.send_privmsg = AsyncMock()
+
+    resp = await daemon._ipc_irc_send("req-uj", {"channel": "#nonexistent", "message": "hello"})
+    assert resp["ok"] is False
+    assert "not joined" in resp["error"].lower()
+    daemon._transport.send_privmsg.assert_not_called()

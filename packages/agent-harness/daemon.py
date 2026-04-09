@@ -372,6 +372,8 @@ class AgentDaemon:
         if not message or not message.strip():
             return make_response(req_id, ok=False, error="Missing 'message'")
         if self._transport:
+            if channel.startswith("#") and channel not in self._transport.channels:
+                return make_response(req_id, ok=False, error=f"Not joined to {channel}")
             await self._transport.send_privmsg(channel, message)
         return make_response(req_id, ok=True)
 

@@ -757,6 +757,8 @@ class ACPDaemon:
         if not text or not text.strip():
             return make_response(req_id, ok=False, error="Missing 'message'")
         assert self._transport is not None
+        if channel.startswith("#") and channel not in self._transport.channels:
+            return make_response(req_id, ok=False, error=f"Not joined to {channel}")
         await self._transport.send_privmsg(channel, text)
         return make_response(req_id, ok=True)
 
