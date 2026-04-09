@@ -4,6 +4,14 @@ All notable changes to this project will be documented in this file.
 
 Format follows [Keep a Changelog](https://keepachangelog.com/).
 
+## [5.0.2] - 2026-04-09
+
+
+### Fixed
+
+- Handle missing credential tool (secret-tool/security/powershell) gracefully instead of crashing the server
+- Report restart failures in mesh update instead of claiming success
+
 ## [5.0.1] - 2026-04-09
 
 
