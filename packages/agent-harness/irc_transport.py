@@ -52,6 +52,9 @@ class IRCTransport:
             "PRIVMSG": self._on_privmsg,
             "NOTICE": self._on_notice,
             "ROOMINVITE": self._on_roominvite,
+            "TOPIC": self._on_topic,
+            "331": self._on_numeric_topic,
+            "332": self._on_numeric_topic,
         }
 
     async def connect(self) -> None:
@@ -205,6 +208,28 @@ class IRCTransport:
             await self._send_raw(f"TAGS {self.nick} {tags_str}")
         if self.icon:
             await self._send_raw(f"ICON {self.icon}")
+
+    def _on_topic(self, msg: Message) -> None:
+        """Handle TOPIC broadcasts (someone changed the topic)."""
+        if len(msg.params) < 2:
+            return
+        channel = msg.params[0]
+        topic = msg.params[1]
+        sender = msg.prefix.split("!")[0] if msg.prefix else "server"
+        if channel.startswith("#"):
+            self.buffer.add(channel, sender, f"* Topic changed: {topic}")
+
+    def _on_numeric_topic(self, msg: Message) -> None:
+        """Handle 331 (no topic) and 332 (topic is...) replies."""
+        if len(msg.params) < 2:
+            return
+        channel = msg.params[1]
+        if not channel.startswith("#"):
+            return
+        if msg.command == "331":
+            self.buffer.add(channel, "server", "* No topic is set")
+        elif msg.command == "332" and len(msg.params) >= 3:
+            self.buffer.add(channel, "server", f"* Topic: {msg.params[2]}")
 
     def _on_privmsg(self, msg: Message) -> None:
         if len(msg.params) < 2:

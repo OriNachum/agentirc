@@ -387,7 +387,7 @@ class AgentDaemon:
         channel = msg.get("channel", "")
         message = msg.get("message", "")
         if not channel:
-            return make_response(req_id, ok=False, error="Missing 'channel'")
+            return make_response(req_id, ok=False, error=_ERR_MISSING_CHANNEL)
         if not message or not message.strip():
             return make_response(req_id, ok=False, error="Missing 'message'")
         if self._transport:
@@ -420,7 +420,7 @@ class AgentDaemon:
         channel = msg.get("channel", "")
         message = msg.get("message", "")
         if not channel:
-            return make_response(req_id, ok=False, error="Missing 'channel'")
+            return make_response(req_id, ok=False, error=_ERR_MISSING_CHANNEL)
         if not message or not message.strip():
             return make_response(req_id, ok=False, error="Missing 'message'")
         if self._transport and channel:
@@ -460,7 +460,7 @@ class AgentDaemon:
     async def _ipc_irc_topic(self, req_id: str, msg: dict) -> dict:
         channel = msg.get("channel", "")
         if not channel:
-            return make_response(req_id, ok=False, error="Missing 'channel'")
+            return make_response(req_id, ok=False, error=_ERR_MISSING_CHANNEL)
         if self._transport:
             topic = msg.get("topic")  # None means query, string means set
             await self._transport.send_topic(channel, topic)
