@@ -379,9 +379,10 @@ the update aborts before restarting any services. The existing version
 continues running. Re-run `culture mesh update` to retry, or use
 `--skip-upgrade` to restart services with the current version.
 
-After a successful TCP probe, the command also verifies via PID file that
-the process listening on the port is actually a culture server. If an
-unrelated process occupies the port, the update reports failure.
+After a successful TCP probe, the command may also use the PID file, when
+present, as a best-effort check that the listener appears to be the expected
+culture server. If no PID file is available, readiness is determined by the
+TCP probe alone.
 
 ## Bots
 

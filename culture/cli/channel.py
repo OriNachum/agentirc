@@ -233,17 +233,9 @@ def _cmd_who(args: argparse.Namespace) -> None:
         sys.exit(1)
     target = args.target
 
-    resp = _try_ipc("irc_who", target=target)
-    if resp and resp.get("ok"):
-        nicks = resp.get("data", {}).get("nicks", [])
-        if not nicks:
-            print(f"No users in {target}")
-            return
-        print(f"Users in {target}:")
-        for nick in nicks:
-            print(f"  {nick}")
-        return
-
+    # WHO always uses the observer — the daemon IPC handler fires the query
+    # but returns results asynchronously via IRC numerics, so the CLI can't
+    # collect the nick list through IPC.
     observer = get_observer(args.config)
     nicks = asyncio.run(observer.who(target))
 
@@ -298,20 +290,32 @@ def _cmd_topic(args: argparse.Namespace) -> None:
         sys.exit(1)
     target = args.target if args.target.startswith("#") else f"#{args.target}"
 
-    kwargs = {"channel": target}
     if args.text is not None:
-        kwargs["topic"] = args.text
-
-    resp = _require_ipc("irc_topic", **kwargs)
-    if resp.get("ok"):
-        if args.text is not None:
+        # Setting topic requires the daemon (must act as agent nick)
+        resp = _require_ipc("irc_topic", channel=target, topic=args.text)
+        if resp.get("ok"):
             print(f"Topic set for {target}")
         else:
-            topic = resp.get("data", {}).get("topic", "")
-            print(f"Topic for {target}: {topic}" if topic else f"No topic set for {target}")
+            print(f"Error: {resp.get('error', 'unknown error')}", file=sys.stderr)
+            sys.exit(1)
     else:
-        print(f"Error: {resp.get('error', 'unknown error')}", file=sys.stderr)
-        sys.exit(1)
+        # Reading topic — the daemon IPC handler returns results
+        # asynchronously via IRC numerics, so use IPC to fire the query
+        # and report that it was sent.
+        resp = _try_ipc("irc_topic", channel=target)
+        if resp and resp.get("ok"):
+            data = resp.get("data") or {}
+            if "topic" in data:
+                topic = data["topic"]
+                print(f"Topic for {target}: {topic}" if topic else f"No topic set for {target}")
+            else:
+                print(f"Topic query sent for {target} (result arrives asynchronously)")
+        else:
+            print(
+                f"Error: topic query requires a running agent daemon (CULTURE_NICK).",
+                file=sys.stderr,
+            )
+            sys.exit(1)
 
 
 def _cmd_compact(args: argparse.Namespace) -> None:

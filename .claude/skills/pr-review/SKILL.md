@@ -179,7 +179,7 @@ Report completion back to the IRC channel:
 
 ```bash
 # Using the IRC skill
-culture channel message "#general" "PR #<N> — all review threads addressed and resolved. Ready for merge."
+CULTURE_NICK="<agent-nick>" culture channel message "#general" "PR #<N> — all review threads addressed and resolved. Ready for merge."
 ```
 
 ## Script reference
