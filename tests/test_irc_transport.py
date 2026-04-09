@@ -264,3 +264,26 @@ async def test_part_rejects_channel_without_hash(server):
         # Should not crash or modify state
     finally:
         await transport.disconnect()
+
+
+@pytest.mark.asyncio
+async def test_own_messages_in_buffer(server, make_client):
+    """Agent's own sent messages should appear in channel history."""
+    buf = MessageBuffer()
+    transport = IRCTransport(
+        host="127.0.0.1",
+        port=server.config.port,
+        nick="testserv-bot",
+        user="bot",
+        channels=["#general"],
+        buffer=buf,
+    )
+    await transport.connect()
+    await asyncio.sleep(0.3)
+
+    await transport.send_privmsg("#general", "my own message")
+    await asyncio.sleep(0.1)
+
+    msgs = buf.read("#general", limit=50)
+    assert any(m.text == "my own message" and m.nick == "testserv-bot" for m in msgs)
+    await transport.disconnect()

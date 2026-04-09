@@ -91,6 +91,10 @@ class IRCTransport:
         for line in text.splitlines():
             if line:
                 await self._send_raw(f"PRIVMSG {target} :{line}")
+                if target.startswith("#"):
+                    self.buffer.add(target, self.nick, line)
+                else:
+                    self.buffer.add(f"DM:{target}", self.nick, line)
 
     async def send_thread_create(self, channel: str, thread_name: str, text: str) -> None:
         lines = [l for l in text.splitlines() if l]
