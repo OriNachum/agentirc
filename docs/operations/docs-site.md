@@ -18,7 +18,9 @@ The project documentation is published at [culture.dev](https://culture.dev) usi
 
 ```bash
 bundle install
-cp -r culture/agentirc/docs docs/agentirc   # gather sub-project docs
+rm -rf docs/agentirc
+mkdir -p docs/agentirc
+cp -r culture/agentirc/docs/. docs/agentirc/   # gather sub-project docs
 bundle exec jekyll serve
 ```
 

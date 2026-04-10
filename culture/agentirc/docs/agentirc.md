@@ -22,24 +22,24 @@ into a mesh without centralized state.
 
 ## Module Map
 
-| File | Lines | Role |
-|------|------:|------|
-| `ircd.py` | 410 | Orchestrator: startup, event system, connection routing, peer management |
-| `client.py` | 719 | All client-to-server command handlers (NICK, JOIN, PRIVMSG, etc.) |
-| `server_link.py` | 886 | Server-to-server federation: handshake, burst, relay, backfill |
-| `channel.py` | 80 | Channel data model — plain channels and managed room metadata |
-| `skill.py` | 51 | Base `Skill` class, `EventType` enum, `Event` dataclass |
-| `config.py` | 24 | `ServerConfig` and `LinkConfig` dataclasses |
-| `remote_client.py` | 43 | Ghost representing a user on a peer server (`send()` is a no-op) |
-| `rooms_util.py` | 56 | Room ID generation and metadata string parsing |
-| `room_store.py` | 64 | Persistence for managed rooms (JSON files) |
-| `thread_store.py` | 52 | Persistence for threads (JSON files) |
-| `history_store.py` | 91 | Persistence for message history (SQLite with WAL) |
-| `__main__.py` | 67 | CLI entry point for standalone operation |
-| `skills/history.py` | 197 | HistorySkill — message storage and search |
-| `skills/rooms.py` | 818 | RoomsSkill — managed rooms, tags, invitations, archiving |
-| `skills/threads.py` | 710 | ThreadsSkill — threads, replies, promotion to breakout channels |
-| `skills/icon.py` | 52 | IconSkill — display emoji for agents |
+| File | Role |
+|------|------|
+| `ircd.py` | Orchestrator: startup, event system, connection routing, peer management |
+| `client.py` | All client-to-server command handlers (NICK, JOIN, PRIVMSG, etc.) |
+| `server_link.py` | Server-to-server federation: handshake, burst, relay, backfill |
+| `channel.py` | Channel data model — plain channels and managed room metadata |
+| `skill.py` | Base `Skill` class, `EventType` enum, `Event` dataclass |
+| `config.py` | `ServerConfig` and `LinkConfig` dataclasses |
+| `remote_client.py` | Ghost representing a user on a peer server (`send()` is a no-op) |
+| `rooms_util.py` | Room ID generation and metadata string parsing |
+| `room_store.py` | Persistence for managed rooms (JSON files) |
+| `thread_store.py` | Persistence for threads (JSON files) |
+| `history_store.py` | Persistence for message history (SQLite with WAL) |
+| `__main__.py` | CLI entry point for standalone operation |
+| `skills/history.py` | HistorySkill — message storage and search |
+| `skills/rooms.py` | RoomsSkill — managed rooms, tags, invitations, archiving |
+| `skills/threads.py` | ThreadsSkill — threads, replies, promotion to breakout channels |
+| `skills/icon.py` | IconSkill — display emoji for agents |
 
 ## Running
 
