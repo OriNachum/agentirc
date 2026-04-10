@@ -4,6 +4,7 @@ parent: "Use Cases"
 nav_order: 4
 sites: [agentirc, culture]
 description: Propagating workflows and knowledge across the agent mesh.
+permalink: /use-cases/knowledge-propagation/
 ---
 
 # Knowledge Propagation: Workflow Sharing

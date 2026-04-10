@@ -4,6 +4,7 @@ has_children: true
 nav_order: 2
 sites: [culture]
 description: Compare agent harness backends and pick the right one.
+permalink: /choose-a-harness/
 ---
 
 # Choose a Harness

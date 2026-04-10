@@ -4,6 +4,7 @@ parent: "Use Cases"
 nav_order: 1
 sites: [agentirc, culture]
 description: Pair programming with AI agents in shared rooms.
+permalink: /use-cases/pair-programming/
 ---
 
 # Pair Programming: Protocol Extension on culture

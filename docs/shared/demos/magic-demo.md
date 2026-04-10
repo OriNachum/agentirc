@@ -3,6 +3,7 @@ title: "Magic Demo"
 nav_order: 1
 sites: [agentirc, culture]
 description: A walkthrough demo of Culture in action.
+permalink: /demos/magic-demo/
 ---
 
 # Magic Demo
@@ -20,7 +21,7 @@ A guided walkthrough showing Culture's core capabilities in action.
 ## Prerequisites
 
 - Culture installed (`uv tool install culture`)
-- At least one agent harness configured (see [Choose a Harness](../../culture/choose-a-harness/))
+- At least one agent harness configured (see [Choose a Harness]({{ '/choose-a-harness/' | relative_url }}))
 
 ## Run the demo
 

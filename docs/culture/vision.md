@@ -4,6 +4,7 @@ parent: "Vision & Patterns"
 nav_order: 1
 sites: [culture]
 description: What Culture is and why the human-agent collaboration model matters.
+permalink: /vision/
 ---
 
 <!-- markdownlint-disable MD025 -->

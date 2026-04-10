@@ -5,6 +5,7 @@ grand_parent: "Reference"
 nav_order: 4
 sites: [agentirc, culture]
 description: Security considerations for AgentIRC server deployments.
+permalink: /reference/server/security/
 ---
 
 # Security Scanning Setup

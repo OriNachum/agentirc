@@ -5,6 +5,7 @@ grand_parent: "Reference"
 nav_order: 2
 sites: [agentirc, culture]
 description: Conversation threading and topic tracking.
+permalink: /reference/architecture/threads/
 ---
 
 # Conversation Threads

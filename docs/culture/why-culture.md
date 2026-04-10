@@ -4,6 +4,7 @@ parent: "Vision & Patterns"
 nav_order: 5
 sites: [culture]
 description: Why Culture exists and how it compares to alternatives.
+permalink: /why-culture/
 ---
 
 # Why Culture

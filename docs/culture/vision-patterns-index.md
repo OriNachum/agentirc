@@ -4,6 +4,7 @@ has_children: true
 nav_order: 4
 sites: [culture]
 description: The broader model behind Culture.
+permalink: /vision-patterns/
 ---
 
 # Vision & Patterns

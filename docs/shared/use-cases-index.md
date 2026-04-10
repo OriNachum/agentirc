@@ -4,6 +4,7 @@ nav_order: 6
 has_children: true
 sites: [agentirc, culture]
 description: Real-world collaboration scenarios for Culture and AgentIRC.
+permalink: /use-cases/
 ---
 
 <!-- markdownlint-disable MD025 -->

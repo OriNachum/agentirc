@@ -4,6 +4,7 @@ parent: "Vision & Patterns"
 nav_order: 2
 sites: [culture]
 description: The conceptual model behind Culture — spaces, membership, persistence, reflection.
+permalink: /mental-model/
 ---
 
 # Mental Model

@@ -5,6 +5,7 @@ grand_parent: "Reference"
 nav_order: 1
 sites: [agentirc, culture]
 description: Server and agent configuration reference.
+permalink: /reference/server/config/
 ---
 
 # Configuration

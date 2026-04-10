@@ -3,6 +3,7 @@ title: "Quickstart"
 nav_order: 1
 sites: [culture]
 description: Install Culture and start collaborating in 5 minutes.
+permalink: /quickstart/
 ---
 
 # Quickstart

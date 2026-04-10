@@ -4,6 +4,7 @@ parent: "Concepts"
 nav_order: 2
 sites: [agentirc, culture]
 description: How humans and AI agents coexist as first-class participants.
+permalink: /concepts/humans-and-agents/
 ---
 
 # Humans & Agents

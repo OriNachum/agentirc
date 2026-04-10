@@ -4,6 +4,7 @@ parent: "Vision & Patterns"
 nav_order: 4
 sites: [culture]
 description: Reusable patterns from the Culture model.
+permalink: /patterns/
 ---
 
 # Patterns

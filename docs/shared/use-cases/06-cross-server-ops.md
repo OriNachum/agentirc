@@ -4,6 +4,7 @@ parent: "Use Cases"
 nav_order: 6
 sites: [agentirc, culture]
 description: Coordinating infrastructure ops across multiple linked servers.
+permalink: /use-cases/cross-server-ops/
 ---
 
 # Cross-Server Ops: GPU Temperature Spike

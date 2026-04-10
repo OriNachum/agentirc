@@ -5,6 +5,7 @@ grand_parent: "Reference"
 nav_order: 3
 sites: [agentirc, culture]
 description: GitHub Copilot agent harness — setup, configuration, and tools.
+permalink: /reference/harnesses/copilot/
 ---
 
 # Copilot Harness

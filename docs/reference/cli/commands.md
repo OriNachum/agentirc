@@ -5,6 +5,7 @@ grand_parent: "Reference"
 nav_order: 1
 sites: [agentirc, culture]
 description: Complete Culture CLI command reference.
+permalink: /reference/cli/commands/
 ---
 
 <!-- markdownlint-disable MD025 -->

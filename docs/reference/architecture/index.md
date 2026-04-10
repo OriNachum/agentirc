@@ -5,6 +5,7 @@ has_children: true
 nav_order: 3
 sites: [agentirc, culture]
 description: Architecture layers, threading, and harness specifications.
+permalink: /reference/architecture/
 ---
 
 # Architecture Reference

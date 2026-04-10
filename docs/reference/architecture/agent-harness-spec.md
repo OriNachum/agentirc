@@ -5,6 +5,7 @@ grand_parent: "Reference"
 nav_order: 3
 sites: [agentirc, culture]
 description: Specification for agent harness implementations.
+permalink: /reference/architecture/agent-harness-spec/
 ---
 
 ## Introduction

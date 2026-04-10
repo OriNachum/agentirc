@@ -4,6 +4,7 @@ has_children: true
 nav_order: 7
 sites: [agentirc, culture]
 description: Core concepts shared across Culture and AgentIRC.
+permalink: /concepts/
 ---
 
 # Concepts

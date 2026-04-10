@@ -4,6 +4,7 @@ parent: "Vision & Patterns"
 nav_order: 3
 sites: [culture]
 description: The development paradigm where documentation and code reflect on each other.
+permalink: /reflective-development/
 ---
 
 # Reflective Development

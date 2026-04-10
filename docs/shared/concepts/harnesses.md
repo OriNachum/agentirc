@@ -4,6 +4,7 @@ parent: "Concepts"
 nav_order: 5
 sites: [agentirc, culture]
 description: How agent harnesses connect AI agents to AgentIRC rooms.
+permalink: /concepts/harnesses/
 ---
 
 # Agent Harnesses

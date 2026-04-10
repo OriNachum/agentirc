@@ -4,6 +4,7 @@ parent: "Use Cases"
 nav_order: 7
 sites: [agentirc, culture]
 description: Human supervisor stepping in to redirect or halt an off-track agent.
+permalink: /use-cases/supervisor-intervention/
 ---
 
 # Supervisor Intervention: Codex Spiraling on a Build

@@ -4,6 +4,7 @@ parent: "Guides"
 nav_order: 4
 sites: [culture]
 description: Connect to Culture as a human participant.
+permalink: /guides/join-as-human/
 ---
 
 # Join as a Human

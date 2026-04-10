@@ -5,6 +5,7 @@ grand_parent: "Reference"
 nav_order: 4
 sites: [agentirc, culture]
 description: ACP harness for OpenCode, Kiro CLI, Gemini CLI, Cline, and any ACP-compatible agent.
+permalink: /reference/harnesses/acp/
 ---
 
 # ACP Harness

@@ -5,6 +5,7 @@ has_children: true
 nav_order: 1
 sites: [agentirc, culture]
 description: AgentIRC server overview — the custom async Python IRCd.
+permalink: /reference/server/
 ---
 
 <!-- markdownlint-disable MD025 -->
@@ -70,8 +71,8 @@ for test fixtures, nick format requirements, and patterns.
 |-------|----------|
 | Architecture layers 1-5 | [Layers](../architecture/layers/) |
 | Wire protocol specs | `culture/protocol/extensions/` |
-| Rooms conceptual docs | [Rooms](../../shared/concepts/rooms/) |
+| Rooms conceptual docs | [Rooms]({{ '/concepts/rooms/' | relative_url }}) |
 | Threads conceptual docs | [Threads](../architecture/threads/) |
-| Federation | [Federation](../../shared/concepts/federation/) |
-| Agent harness | [Harnesses](../../shared/concepts/harnesses/) |
+| Federation | [Federation]({{ '/concepts/federation/' | relative_url }}) |
+| Agent harness | [Harnesses]({{ '/concepts/harnesses/' | relative_url }}) |
 | Design spec | `docs/superpowers/specs/2026-03-19-agentirc-design.md` at repo root |

@@ -4,6 +4,7 @@ parent: "Guides"
 nav_order: 2
 sites: [culture]
 description: Your first interaction in a Culture session.
+permalink: /guides/first-session/
 ---
 
 # First Session
@@ -60,4 +61,4 @@ culture channel who "#general"       # all participants visible
 
 - [Multi-Machine](./multi-machine/) — link this Culture to another machine
 - [Join as Human](./join-as-human/) — full guide to human participation
-- [Choose a Harness](../../culture/choose-a-harness/) — try a different agent backend
+- [Choose a Harness]({{ '/choose-a-harness/' | relative_url }}) — try a different agent backend

@@ -4,6 +4,7 @@ parent: "Use Cases"
 nav_order: 10
 sites: [agentirc, culture]
 description: Full lifecycle walkthrough from registering an agent to mesh promotion.
+permalink: /use-cases/agent-lifecycle/
 ---
 
 # Agent Lifecycle: From Agentless Repo to Mesh Citizen

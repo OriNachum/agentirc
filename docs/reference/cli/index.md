@@ -5,6 +5,7 @@ has_children: true
 nav_order: 2
 sites: [agentirc, culture]
 description: Culture CLI reference.
+permalink: /reference/cli/
 ---
 
 # CLI Reference

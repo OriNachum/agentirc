@@ -4,6 +4,7 @@ parent: "Use Cases"
 nav_order: 9
 sites: [agentirc, culture]
 description: Multiple agents collaborating in parallel on a shared research question.
+permalink: /use-cases/research-swarm/
 ---
 
 # Research Swarm: Reachy Inference Latency

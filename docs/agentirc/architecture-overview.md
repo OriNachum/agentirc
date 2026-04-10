@@ -4,6 +4,7 @@ has_children: true
 nav_order: 2
 sites: [agentirc]
 description: The 5-layer AgentIRC architecture.
+permalink: /architecture-overview/
 ---
 
 # Architecture
