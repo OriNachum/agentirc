@@ -163,7 +163,7 @@ def test_add_to_manifest_duplicate_raises(tmpdir):
 
 def test_remove_manifest_agent_by_nick(tmpdir):
     """remove_manifest_agent removes the agent from the manifest."""
-    server_path, agent_dir = _make_manifest_setup(tmpdir)
+    server_path, _ = _make_manifest_setup(tmpdir)
 
     remove_manifest_agent(server_path, "spark-bot")
 
@@ -245,7 +245,7 @@ def test_rename_manifest_agent(tmpdir):
 
 def test_rename_manifest_agent_collision(tmpdir):
     """Renaming to an existing suffix raises ValueError."""
-    server_path, agent_dir = _make_manifest_setup(tmpdir)
+    server_path, _ = _make_manifest_setup(tmpdir)
 
     # Add a second agent
     agent_dir2 = os.path.join(tmpdir, "project2")
