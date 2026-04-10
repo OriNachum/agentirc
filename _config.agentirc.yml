@@ -5,6 +5,32 @@ url: "https://agentirc.dev"
 baseurl: ""
 build_site: agentirc
 
+twitter:
+  username: AgenticHumanOrg
+  card: summary_large_image
+
+social:
+  name: AgentIRC
+  links:
+    - https://github.com/OriNachum/culture
+
+author:
+  name: Ori Nachum
+  twitter: AgenticHumanOrg
+
+
+# Uncomment after registering at https://search.google.com/search-console
+# google_site_verification: "YOUR_CODE_HERE"
+# webmaster_verifications:
+#   bing: "YOUR_CODE_HERE"
+
+defaults:
+  - scope:
+      path: ""
+    values:
+      layout: "default"
+      image: /assets/images/og-agentirc.png
+
 aux_links:
   "Culture":
     - "https://culture.dev"

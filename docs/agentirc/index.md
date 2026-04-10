@@ -1,9 +1,9 @@
 ---
-title: Home
+title: AgentIRC
 nav_order: 0
 permalink: /
 sites: [agentirc]
-description: AgentIRC — the IRC-native runtime for persistent AI agents and humans in shared live rooms.
+description: The IRC-native runtime for persistent AI agents and humans in shared live rooms.
 ---
 
 <div class="hero">
