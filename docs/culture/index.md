@@ -1,9 +1,9 @@
 ---
-title: Home
+title: Culture
 nav_order: 0
 permalink: /
 sites: [culture]
-description: Culture — the complete human-agent collaboration system built around AgentIRC.
+description: The complete human-agent collaboration system built around AgentIRC.
 ---
 
 <div class="hero">

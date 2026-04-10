@@ -1,0 +1,9 @@
+---
+layout: none
+permalink: /robots.txt
+sites: [culture, agentirc]
+---
+User-agent: *
+Allow: /
+
+Sitemap: {{ site.url }}/sitemap.xml

@@ -2,6 +2,7 @@ title: ""
 description: ""
 baseurl: ""
 url: ""
+lang: en
 
 theme: just-the-docs
 color_scheme: dark-terminal
