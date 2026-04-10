@@ -4,6 +4,13 @@ All notable changes to this project will be documented in this file.
 
 Format follows [Keep a Changelog](https://keepachangelog.com/).
 
+## [6.0.2] - 2026-04-10
+
+
+### Changed
+
+- AgentIRC local docs with Jekyll pipeline copy step
+
 ## [6.0.1] - 2026-04-10
 
 
