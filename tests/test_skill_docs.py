@@ -46,10 +46,13 @@ def test_all_irc_skills_have_whispers(backend):
 
 
 @pytest.mark.parametrize("backend", ["claude", "codex", "copilot", "acp"])
-def test_all_irc_skills_have_python_api(backend):
-    """Issue #182: every backend should have a Python API section."""
+def test_all_irc_skills_use_culture_channel_cli(backend):
+    """Issue #215: every backend should use culture channel CLI, not internal modules."""
     content = IRC_SKILL_FILES[backend].read_text()
-    assert "Python API" in content, f"{backend} SKILL.md missing Python API section"
+    assert "culture channel" in content, f"{backend} SKILL.md missing culture channel CLI"
+    assert (
+        "python3 -m culture" not in content
+    ), f"{backend} SKILL.md still uses internal module path"
 
 
 def test_codex_plugin_matches_source():
