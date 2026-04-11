@@ -6,7 +6,7 @@
 
 **Architecture:** Three focused changes to the existing Textual console app. A new `status.py` module queries daemon IPC sockets for agent activity. The `_switch_to_channel()` method centralizes channel switching with auto-history. A `/help` command and `Ctrl+H` binding render command reference in the chat panel.
 
-**Tech Stack:** Python 3.11+, Textual TUI framework, asyncio, Unix domain sockets (existing IPC layer)
+**Tech Stack:** Python 3.12+, Textual TUI framework, asyncio, Unix domain sockets (existing IPC layer)
 
 **Spec:** `docs/superpowers/specs/2026-04-12-console-enhancements-design.md`
 

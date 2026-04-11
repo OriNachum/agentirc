@@ -19,7 +19,7 @@ def discover_agent_sockets() -> list[tuple[str, Path]]:
     if not runtime_dir.is_dir():
         return results
     for entry in runtime_dir.iterdir():
-        if entry.name.startswith("culture-") and entry.name.endswith(".sock"):
+        if entry.name.startswith("culture-") and entry.name.endswith(".sock") and entry.is_socket():
             nick = entry.name[len("culture-") : -len(".sock")]
             results.append((nick, entry))
     return results

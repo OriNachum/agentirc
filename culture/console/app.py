@@ -388,6 +388,7 @@ class ConsoleApp(App):
 
     def action_show_help(self) -> None:
         """Show help content with all commands and keybindings."""
+        self._current_view = "help"
         chat: ChatPanel = self.query_one(ChatPanel)
         lines = [
             "[bold $warning]COMMANDS[/]",

@@ -117,7 +117,7 @@ class _EntityRow(Static):
         if entity.activity and entity.activity in _ACTIVITY_INDICATOR:
             dot = _ACTIVITY_INDICATOR[entity.activity]
         elif entity.online:
-            dot = "[green]●[/]"
+            dot = "●"
         else:
             dot = "[dim]○[/]"
         icon = entity.icon or _TYPE_ICON.get(entity.entity_type, "")
