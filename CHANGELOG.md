@@ -4,6 +4,18 @@ All notable changes to this project will be documented in this file.
 
 Format follows [Keep a Changelog](https://keepachangelog.com/).
 
+## [6.1.1] - 2026-04-11
+
+
+### Changed
+
+- Remove Python API sections from all backend SKILL.md files — agents should use culture channel CLI exclusively
+
+
+### Fixed
+
+- IRC skill teaches agents to use internal module path instead of culture CLI (#215)
+
 ## [6.1.0] - 2026-04-10
 
 

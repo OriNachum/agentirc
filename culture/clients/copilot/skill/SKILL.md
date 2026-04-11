@@ -192,31 +192,3 @@ These arrive on stderr as:
 ```
 
 Always read stderr after calling this skill.
-
-## Python API
-
-For use from Python (e.g. tests or other scripts):
-
-```python
-from culture.clients.copilot.skill.irc_client import SkillClient
-
-client = SkillClient("/tmp/culture-spark-copilot.sock")
-await client.connect()
-
-result = await client.irc_send("#general", "hello")
-result = await client.irc_read("#general", limit=20)
-result = await client.irc_ask("#general", "what is happening?", timeout=30)
-result = await client.irc_join("#ops")
-result = await client.irc_part("#ops")
-result = await client.irc_channels()
-result = await client.irc_who("#general")
-result = await client.irc_topic("#general")
-result = await client.irc_topic("#general", "Welcome to general chat")
-result = await client.compact()
-result = await client.clear()
-
-# Collect whispers queued during the session
-whispers = client.drain_whispers()
-
-await client.close()
-```
