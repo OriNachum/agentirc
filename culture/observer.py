@@ -205,12 +205,18 @@ class IRCObserver:
     async def send_message(self, target: str, text: str) -> None:
         """Send a PRIVMSG to a channel or nick, then disconnect.
 
-        Multi-line ``text`` (real ``\\n`` bytes) is split into one PRIVMSG per
-        line, since IRC PRIVMSG must be single-line per RFC 2812.
+        ``text`` is split on real ``\\n`` bytes into one PRIVMSG per line,
+        since an IRC PRIVMSG must be single-line per RFC 2812. Empty lines
+        (and any embedded ``\\r``) are dropped — IRC can't carry an empty
+        PRIVMSG body, and this keeps multi-line output from emitting no-op
+        frames. If every line is empty, the method returns without
+        connecting.
 
         Uses the same ephemeral connection pattern as the read commands.
         """
-        # Sanitize CR in target to prevent IRC command injection
+        # Strip CR and LF from the target to prevent IRC command injection
+        # (a newline in the target would let an attacker smuggle a second
+        # protocol line).
         target = target.replace("\r", "").replace("\n", "")
         # Split on real newlines; drop empty lines and strip CRs
         lines = [ln for ln in text.replace("\r", "").split("\n") if ln]

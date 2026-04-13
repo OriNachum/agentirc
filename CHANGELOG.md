@@ -16,7 +16,7 @@ Format follows [Keep a Changelog](https://keepachangelog.com/).
 
 - #227: Tab now cycles channels (added priority=True to override Textual Screen focus-cycling)
 - #226: Alt+Left/Right jump by word in chat input; Alt+Backspace deletes previous word
-- #225: `culture channel message` interprets literal \n and \t; observer splits multi-line text into one PRIVMSG per line
+- #225: `culture channel message` interprets literal \n, \t, and \\ (escape-an-escape); observer splits multi-line text into one PRIVMSG per line and rejects all-empty-after-interpretation input with a non-zero exit
 - #224: Exiting overview now reloads the current channel history (was empty)
 - Help screen now opens on F1 (Ctrl+H stays as secondary — most terminals forward it as Backspace)
 

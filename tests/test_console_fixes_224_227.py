@@ -8,9 +8,11 @@
 
 from __future__ import annotations
 
+import argparse
+
 import pytest
 
-from culture.cli.channel import _interpret_escapes
+from culture.cli.channel import _cmd_message, _interpret_escapes
 from culture.console.app import ConsoleApp
 from culture.console.widgets.chat import ChatInput
 from culture.observer import IRCObserver
@@ -21,7 +23,7 @@ from culture.observer import IRCObserver
 
 
 class TestInterpretEscapes:
-    """Convert shell-literal \\n / \\t sequences to real newlines / tabs."""
+    """Convert shell-literal \\n / \\t / \\\\ sequences to real chars."""
 
     def test_single_newline(self):
         assert _interpret_escapes(r"a\nb") == "a\nb"
@@ -42,14 +44,51 @@ class TestInterpretEscapes:
         # Real newlines (e.g., from heredoc) passthrough unchanged.
         assert _interpret_escapes("a\nb") == "a\nb"
 
+    def test_double_backslash_is_literal_backslash(self):
+        # \\ collapses to a single backslash — so \\n stays as literal
+        # backslash-n (two chars), not as a newline.
+        assert _interpret_escapes(r"a\\b") == r"a\b"
+        assert _interpret_escapes(r"use \\n in your text") == r"use \n in your text"
+
     def test_other_escapes_untouched(self):
-        # Narrow scope: only \n and \t. Anything else (\f, \r, \x.., \\) is
-        # passed through byte-for-byte.
+        # Only \n, \t, \\ are recognised. Any other \x pair is passed through
+        # with the backslash intact — no \x..  / \u.... / \r interpretation.
         assert _interpret_escapes(r"a\fb") == r"a\fb"
         assert _interpret_escapes(r"a\rb") == r"a\rb"
-        assert _interpret_escapes(r"a\\b") == r"a\\b"
-        # And the literal \n we produce is a real newline, not a backslash-n.
+        assert _interpret_escapes(r"a\xb") == r"a\xb"
+        # Trailing lone backslash passes through
+        assert _interpret_escapes("a\\") == "a\\"
+
+    def test_interpreted_newline_is_real(self):
+        # The literal \n we produce is a real newline, not a backslash-n.
         assert "\\n" not in _interpret_escapes(r"a\nb")
+
+
+class TestMessageEmptyAfterInterpret:
+    """_cmd_message must exit 1 if nothing would be sent after interpretation."""
+
+    def _args(self, text: str) -> argparse.Namespace:
+        return argparse.Namespace(
+            target="#test",
+            text=text,
+            config="~/.culture/server.yaml",
+        )
+
+    def test_only_whitespace_and_newlines_rejected(self, capsys):
+        # Pre-interpretation pass (non-empty string), but after interpretation
+        # the message is all empty lines — nothing would actually be sent.
+        with pytest.raises(SystemExit) as exc:
+            _cmd_message(self._args(r"\n\n\n"))
+        assert exc.value.code == 1
+        assert "no non-empty line" in capsys.readouterr().err
+
+    def test_whitespace_only_rejected_before_interpretation(self, capsys):
+        # The existing strip check rejects pure whitespace before we get to
+        # the interpretation step.
+        with pytest.raises(SystemExit) as exc:
+            _cmd_message(self._args("   "))
+        assert exc.value.code == 1
+        assert "cannot be empty" in capsys.readouterr().err
 
 
 # ---------------------------------------------------------------------------
