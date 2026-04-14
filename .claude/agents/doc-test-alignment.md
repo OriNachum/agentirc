@@ -81,8 +81,8 @@ Match rules:
 - **CLI command**: must appear in `docs/` (user-facing command reference)
   AND in the command's own module docstring.
 - **IRC verb / protocol extension**: MUST have a page under
-  `protocol/extensions/` (per `culture/CLAUDE.md`: "Extensions use new
-  verbs (never redefine existing commands), documented in
+  `protocol/extensions/` (per the repository-root `CLAUDE.md`: "Extensions
+  use new verbs (never redefine existing commands), documented in
   `protocol/extensions/`").
 - **Config field**: must appear in the relevant backend's `culture.yaml`
   reference under `packages/agent-harness/culture.yaml` or
@@ -108,13 +108,16 @@ Report as "likely untested" rather than "untested".
 If the diff touches `culture/clients/<backend>/` OR `packages/agent-harness/`,
 list the other backends (`claude`, `codex`, `copilot`, `acp`) and report
 whether the same change appears in each. This enforces the project's
-"all-backends rule" (per `culture/CLAUDE.md`). A change in only one backend
-is a bug.
+"all-backends rule" (per the repository-root `CLAUDE.md`). A change in
+only one backend is a bug.
 
 ## Step 6 — Report
 
-Output a concise table. No prose. No suggestions about what to write — just
-what's missing.
+Output a concise table. Factual only: what symbols, what's missing,
+what's drifted. Do **not** write prose narration and do **not** suggest
+what the docs should say — leave doc wording to the caller. A brief
+counts-only summary line at the end is fine; skip it if everything is
+clean.
 
 ```text
 ## Doc-Test Alignment — <branch> vs main
@@ -136,11 +139,7 @@ Change touches `packages/agent-harness/irc_transport.py`:
 - acp: ✗ NOT updated (divergent)
 
 ### Summary
-- Doc gaps: 1 (ConsoleConnectionLost)
-- Likely untested: 0
-- Backend drift: 2 (copilot, acp)
-
-Recommendation: address the above before `git push`.
+Doc gaps: 1 · Likely untested: 0 · Backend drift: 2
 ```
 
 If nothing is missing, output one line: `Doc-test alignment clean — no gaps detected.`
