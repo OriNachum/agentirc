@@ -137,10 +137,12 @@ class ConsoleIRCClient:
         self._pending.clear()
         if self._read_task:
             self._read_task.cancel()
+            await asyncio.gather(self._read_task, return_exceptions=True)
             self._read_task = None
         if self._writer:
             try:
                 self._writer.close()
+                await self._writer.wait_closed()
             except OSError:
                 pass
         self._writer = None

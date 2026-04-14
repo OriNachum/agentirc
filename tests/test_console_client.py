@@ -324,7 +324,7 @@ async def test_send_raw_raises_console_connection_lost_when_socket_broken(server
     server_client.writer.close()
     try:
         await server_client.writer.wait_closed()
-    except (ConnectionError, OSError):
+    except OSError:
         pass
 
     # Repeated writes are required — the first drain() often succeeds because
@@ -349,7 +349,7 @@ async def test_history_cleans_up_pending_buffers_on_connection_lost(server):
     server.clients[nick].writer.close()
     try:
         await server.clients[nick].writer.wait_closed()
-    except (ConnectionError, OSError):
+    except OSError:
         pass
 
     # Drain writes until ConsoleConnectionLost is raised by history().
