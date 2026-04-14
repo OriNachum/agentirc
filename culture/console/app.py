@@ -13,7 +13,7 @@ from textual.containers import Horizontal
 from textual.widgets import Footer, Header
 
 from culture.aio import maybe_await
-from culture.console.client import ConsoleIRCClient
+from culture.console.client import ConsoleConnectionLost, ConsoleIRCClient
 from culture.console.commands import CommandType, parse_command
 from culture.console.status import query_all_agents
 from culture.console.widgets.chat import ChatPanel
@@ -73,6 +73,10 @@ class ConsoleApp(App):
         self._buffer_task: asyncio.Task | None = None
         self._background_tasks: set[asyncio.Task] = set()
         self._status_poll_task: asyncio.Task | None = None
+
+        # Once the connection drops, show the "connection lost" notice exactly
+        # once — subsequent failing commands/channel-switches stay quiet.
+        self._connection_lost_notified: bool = False
 
         # Dispatch table for command execution
         self._command_handlers: dict[CommandType, Any] = {
@@ -205,13 +209,29 @@ class ConsoleApp(App):
     async def _execute_command(self, cmd) -> None:  # noqa: ANN001
         """Dispatch a ParsedCommand to the appropriate handler."""
         handler = self._command_handlers.get(cmd.type)
-        if handler:
-            await maybe_await(handler(cmd))
-        elif cmd.type in (CommandType.START, CommandType.STOP, CommandType.RESTART):
-            self._handle_agent_management(cmd)
-        elif cmd.type == CommandType.UNKNOWN:
-            chat: ChatPanel = self.query_one(ChatPanel)
-            chat.add_message(time.time(), "", "system", f"[red]Unknown command: {cmd.text}[/]")
+        try:
+            if handler:
+                await maybe_await(handler(cmd))
+            elif cmd.type in (CommandType.START, CommandType.STOP, CommandType.RESTART):
+                self._handle_agent_management(cmd)
+            elif cmd.type == CommandType.UNKNOWN:
+                chat: ChatPanel = self.query_one(ChatPanel)
+                chat.add_message(time.time(), "", "system", f"[red]Unknown command: {cmd.text}[/]")
+        except ConsoleConnectionLost:
+            self._notify_connection_lost()
+
+    def _notify_connection_lost(self) -> None:
+        """Post the 'connection lost' notice once per disconnect."""
+        if self._connection_lost_notified:
+            return
+        self._connection_lost_notified = True
+        chat: ChatPanel = self.query_one(ChatPanel)
+        chat.add_message(
+            time.time(),
+            "",
+            "system",
+            "[red]Connection to server lost. Restart the console to reconnect.[/]",
+        )
 
     # ------------------------------------------------------------------
     # Command handlers
@@ -689,7 +709,11 @@ class ConsoleApp(App):
             pass
 
         # Fetch recent history
-        entries = await self._client.history(channel, limit=20)
+        try:
+            entries = await self._client.history(channel, limit=20)
+        except ConsoleConnectionLost:
+            self._notify_connection_lost()
+            return
         # Stale check: if user switched away during fetch, discard results
         if self._current_channel != channel:
             return

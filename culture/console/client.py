@@ -24,6 +24,10 @@ QUERY_TIMEOUT = 10.0
 REGISTER_TIMEOUT = 15.0
 
 
+class ConsoleConnectionLost(ConnectionError):
+    """Raised by ConsoleIRCClient when the underlying socket is broken mid-send."""
+
+
 @dataclass
 class ChatMessage:
     """A buffered chat message from a channel or DM."""
@@ -100,35 +104,49 @@ class ConsoleIRCClient:
             timeout=REGISTER_TIMEOUT,
         )
 
-        await self._send_raw(f"NICK {self.nick}")
-        await self._send_raw(f"USER {self.nick} 0 * :{self.nick}")
-
-        # Wait for RPL_WELCOME (001) before proceeding
-        welcome_future: asyncio.Future[Message] = asyncio.get_running_loop().create_future()
-        self._pending["001"] = welcome_future
-
-        # Start the read loop so the future can be resolved
-        self._read_task = asyncio.create_task(self._read_loop())
-
         try:
-            await asyncio.wait_for(welcome_future, timeout=REGISTER_TIMEOUT)
-        except asyncio.TimeoutError:
-            self._pending.clear()
-            if self._read_task:
-                self._read_task.cancel()
-            if self._writer:
+            await self._send_raw(f"NICK {self.nick}")
+            await self._send_raw(f"USER {self.nick} 0 * :{self.nick}")
+
+            # Wait for RPL_WELCOME (001) before proceeding
+            welcome_future: asyncio.Future[Message] = asyncio.get_running_loop().create_future()
+            self._pending["001"] = welcome_future
+
+            # Start the read loop so the future can be resolved
+            self._read_task = asyncio.create_task(self._read_loop())
+
+            try:
+                await asyncio.wait_for(welcome_future, timeout=REGISTER_TIMEOUT)
+            except asyncio.TimeoutError as e:
+                raise ConnectionError("Timed out waiting for server welcome (001)") from e
+
+            # Set user mode
+            if self.mode:
+                await self._send_raw(f"MODE {self.nick} +{self.mode}")
+
+            # Send ICON if provided
+            if self.icon:
+                await self._send_raw(f"ICON {self.icon}")
+        except BaseException:
+            # Any failure after open_connection: tear down the half-open state.
+            await self._teardown_connection()
+            raise
+
+    async def _teardown_connection(self) -> None:
+        """Close writer, cancel reader, clear pending futures. Idempotent."""
+        self._pending.clear()
+        if self._read_task:
+            self._read_task.cancel()
+            await asyncio.gather(self._read_task, return_exceptions=True)
+            self._read_task = None
+        if self._writer:
+            try:
                 self._writer.close()
-                self._writer = None
-                self._reader = None
-            raise ConnectionError("Timed out waiting for server welcome (001)")
-
-        # Set user mode
-        if self.mode:
-            await self._send_raw(f"MODE {self.nick} +{self.mode}")
-
-        # Send ICON if provided
-        if self.icon:
-            await self._send_raw(f"ICON {self.icon}")
+                await self._writer.wait_closed()
+            except OSError:
+                pass
+        self._writer = None
+        self._reader = None
 
     async def disconnect(self) -> None:
         """Send QUIT and close the connection."""
@@ -186,18 +204,24 @@ class ConsoleIRCClient:
         Returns a sorted list of channel names.
         """
         key = "LIST"
+        pending_key = "323"
         self._collect_buffers[key] = []
         end_future: asyncio.Future[None] = asyncio.get_running_loop().create_future()
-        self._pending["323"] = end_future
+        self._pending[pending_key] = end_future
 
-        await self._send_raw("LIST")
+        try:
+            await self._send_raw("LIST")
+        except ConsoleConnectionLost:
+            self._pending.pop(pending_key, None)
+            self._collect_buffers.pop(key, None)
+            raise
 
         try:
             await asyncio.wait_for(end_future, timeout=QUERY_TIMEOUT)
         except asyncio.TimeoutError:
             pass
         finally:
-            self._pending.pop("323", None)
+            self._pending.pop(pending_key, None)
 
         channels = self._collect_buffers.pop(key, [])
         return sorted(channels)
@@ -208,18 +232,24 @@ class ConsoleIRCClient:
         Returns a list of dicts with nick, user, host, server, flags, realname.
         """
         key = f"WHO {target}"
+        pending_key = f"315:{target}"
         self._collect_buffers[key] = []
         end_future: asyncio.Future[None] = asyncio.get_running_loop().create_future()
-        self._pending[f"315:{target}"] = end_future
+        self._pending[pending_key] = end_future
 
-        await self._send_raw(f"WHO {target}")
+        try:
+            await self._send_raw(f"WHO {target}")
+        except ConsoleConnectionLost:
+            self._pending.pop(pending_key, None)
+            self._collect_buffers.pop(key, None)
+            raise
 
         try:
             await asyncio.wait_for(end_future, timeout=QUERY_TIMEOUT)
         except asyncio.TimeoutError:
             pass
         finally:
-            self._pending.pop(f"315:{target}", None)
+            self._pending.pop(pending_key, None)
 
         entries = self._collect_buffers.pop(key, [])
         return entries
@@ -230,18 +260,24 @@ class ConsoleIRCClient:
         Returns a list of dicts with channel, nick, timestamp, text.
         """
         key = f"HISTORY {channel}"
+        pending_key = f"HISTORYEND:{channel}"
         self._collect_buffers[key] = []
         end_future: asyncio.Future[None] = asyncio.get_running_loop().create_future()
-        self._pending[f"HISTORYEND:{channel}"] = end_future
+        self._pending[pending_key] = end_future
 
-        await self._send_raw(f"HISTORY RECENT {channel} {limit}")
+        try:
+            await self._send_raw(f"HISTORY RECENT {channel} {limit}")
+        except ConsoleConnectionLost:
+            self._pending.pop(pending_key, None)
+            self._collect_buffers.pop(key, None)
+            raise
 
         try:
             await asyncio.wait_for(end_future, timeout=QUERY_TIMEOUT)
         except asyncio.TimeoutError:
             pass
         finally:
-            self._pending.pop(f"HISTORYEND:{channel}", None)
+            self._pending.pop(pending_key, None)
 
         entries = self._collect_buffers.pop(key, [])
         return entries
@@ -252,9 +288,15 @@ class ConsoleIRCClient:
 
     async def _send_raw(self, line: str) -> None:
         """Write a raw IRC line to the socket."""
-        if self._writer:
+        if not self._writer:
+            return
+        try:
             self._writer.write(f"{line}\r\n".encode())
             await self._writer.drain()
+        except (BrokenPipeError, ConnectionResetError, ConnectionAbortedError) as e:
+            self.connected = False
+            logger.warning("ConsoleIRCClient: send failed (%s)", e.__class__.__name__)
+            raise ConsoleConnectionLost(str(e)) from e
 
     async def _read_loop(self) -> None:
         """Background task: read lines from socket and dispatch to _handle."""

@@ -10,7 +10,7 @@ import asyncio
 
 import pytest
 
-from culture.console.client import ChatMessage, ConsoleIRCClient
+from culture.console.client import ChatMessage, ConsoleConnectionLost, ConsoleIRCClient
 
 # ---------------------------------------------------------------------------
 # Helpers
@@ -296,3 +296,101 @@ async def test_history_returns_messages(server, make_client):
     assert any(e.get("text") == "history test message" for e in entries)
 
     await client.disconnect()
+
+
+# ---------------------------------------------------------------------------
+# Broken-pipe handling (issue #230)
+# ---------------------------------------------------------------------------
+
+
+@pytest.mark.asyncio
+async def test_send_raw_raises_console_connection_lost_when_socket_broken(server):
+    """Writes to a broken socket surface as ConsoleConnectionLost, not BrokenPipeError.
+
+    Reproduces issue #230: iTerm / idle disconnects caused asyncio's
+    `StreamWriter.drain()` to raise `BrokenPipeError` which was never caught,
+    crashing the console command task. The fix wraps the write in
+    `_send_raw` and re-raises a typed `ConsoleConnectionLost`.
+    """
+    nick = "testserv-pipetest"
+    client = make_console_client(server, nick=nick)
+    await client.connect()
+    assert client.connected is True
+
+    # Force-close the server side of this client's socket. The server
+    # retains the asyncio StreamWriter on its Client object; closing it
+    # sends FIN to the console client and the next drain() there fails.
+    server_client = server.clients[nick]
+    server_client.writer.close()
+    try:
+        await server_client.writer.wait_closed()
+    except OSError:
+        pass
+
+    # Repeated writes are required — the first drain() often succeeds because
+    # data lands in the local kernel buffer before the RST is observed.
+    with pytest.raises(ConsoleConnectionLost):
+        for _ in range(20):
+            await client.send_privmsg("#nowhere", "x" * 512)
+            await asyncio.sleep(0.02)
+
+    assert client.connected is False
+    await client.disconnect()
+
+
+@pytest.mark.asyncio
+async def test_history_cleans_up_pending_buffers_on_connection_lost(server):
+    """A failed history() send must not leak _pending / _collect_buffers entries."""
+    nick = "testserv-histleak"
+    client = make_console_client(server, nick=nick)
+    await client.connect()
+
+    # Break the socket from the server side.
+    server.clients[nick].writer.close()
+    try:
+        await server.clients[nick].writer.wait_closed()
+    except OSError:
+        pass
+
+    # Drain writes until ConsoleConnectionLost is raised by history().
+    raised = False
+    for _ in range(20):
+        try:
+            await client.history("#ghost", limit=5)
+        except ConsoleConnectionLost:
+            raised = True
+            break
+        await asyncio.sleep(0.02)
+
+    assert raised, "history() should eventually raise ConsoleConnectionLost"
+    # No stale state left behind — would otherwise hang future queries / leak memory.
+    assert "HISTORYEND:#ghost" not in client._pending
+    assert "HISTORY #ghost" not in client._collect_buffers
+    await client.disconnect()
+
+
+@pytest.mark.asyncio
+async def test_connect_cleans_up_on_registration_failure(monkeypatch, server):
+    """A ConsoleConnectionLost mid-registration must close the writer, not leak it."""
+    client = make_console_client(server, nick="testserv-leaktest")
+
+    # Simulate a server drop between open_connection and the first NICK write.
+    original_send_raw = client._send_raw
+    calls = {"n": 0}
+
+    async def failing_send_raw(line: str) -> None:
+        calls["n"] += 1
+        if calls["n"] == 1:
+            raise ConsoleConnectionLost("simulated drop during registration")
+        await original_send_raw(line)
+
+    monkeypatch.setattr(client, "_send_raw", failing_send_raw)
+
+    with pytest.raises(ConsoleConnectionLost):
+        await client.connect()
+
+    # After failure, no half-open socket or dangling state.
+    assert client._writer is None
+    assert client._reader is None
+    assert client._read_task is None
+    assert client._pending == {}

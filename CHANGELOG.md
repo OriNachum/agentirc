@@ -4,6 +4,13 @@ All notable changes to this project will be documented in this file.
 
 Format follows [Keep a Changelog](https://keepachangelog.com/).
 
+## [6.2.2] - 2026-04-14
+
+
+### Fixed
+
+- console: handle BrokenPipeError/ConnectionResetError in _send_raw; surface a red system notice in the chat panel instead of letting the asyncio task crash (#230)
+
 ## [6.2.1] - 2026-04-13
 
 
