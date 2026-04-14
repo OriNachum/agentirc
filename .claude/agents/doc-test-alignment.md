@@ -1,6 +1,6 @@
 ---
 name: doc-test-alignment
-description: Audits a staged/branch diff for new public API surface (exceptions, classes, public functions, CLI commands, IRC protocol verbs) and reports whether `docs/` and `protocol/extensions/` mention them. Use at the end of a plan, before the first push, or when the user says "doc audit", "doc-test alignment", "check docs coverage".
+description: Audits a staged/branch diff for new public API surface (exceptions, classes, public functions, CLI commands, IRC protocol verbs, backend config fields) and reports whether `docs/` and `protocol/extensions/` mention them. Use at the end of a plan, before the first push, or when the user says "doc audit", "doc-test alignment", "check docs coverage".
 tools: Read, Grep, Glob, Bash
 model: sonnet
 color: cyan
@@ -33,10 +33,22 @@ If neither yields a diff, report "no changes to audit" and stop.
 
 ## Step 2 — Extract new public API surface
 
-Grep the diff for **additions** (`+` lines) that introduce public symbols:
+Run the patterns via the **Grep tool** (ripgrep / Rust regex engine — the
+Claude Code default). Patterns below are written in the Rust regex flavor
+that ripgrep accepts without any extra flags: `\s`, `(?:...)`, and character
+classes all work as written. Do **not** pipe these into POSIX `grep` / BRE
+— they will silently fail to match.
 
-| Surface type | Regex signal |
-|--------------|--------------|
+Save the diff first, then search it:
+
+```bash
+git diff main...HEAD -- '*.py' 'culture/cli/*' 'culture/agentirc/*' > /tmp/branch-diff.patch
+```
+
+Then feed `/tmp/branch-diff.patch` to the Grep tool with each pattern below.
+
+| Surface type | Ripgrep pattern |
+|--------------|-----------------|
 | New exception class | `^\+class [A-Z][A-Za-z0-9_]*(\(.*(?:Error\|Exception).*\))?:` |
 | New public class | `^\+class [A-Z][A-Za-z0-9_]*` (exclude leading `_`) |
 | New public function | `^\+(async )?def [a-z][a-z0-9_]*\(` (exclude leading `_`) |
