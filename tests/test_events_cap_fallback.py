@@ -1,7 +1,5 @@
 """CAP negotiation for message-tags + plain-body fallback for non-tag clients."""
 
-import asyncio
-
 import pytest
 
 
@@ -27,16 +25,34 @@ async def test_cap_req_ack(server, make_client):
 @pytest.mark.asyncio
 async def test_non_tag_client_receives_plain_privmsg(server, make_client):
     """A client that never REQs message-tags should not receive @tag blocks."""
+    from culture.protocol.message import Message
+
     c = await make_client(nick="testserv-alice", user="alice")
     # Do not send CAP REQ. Server will strip tags.
-    # Force the server to emit a tagged PRIVMSG by triggering an event.
-    # Use `JOIN #testchan`, which will surface as tagged PRIVMSG once
-    # events are wired through (later tasks). For now, the inverse check:
-    # just verify that lines arrive without a leading '@' when the
-    # client has not opted in.
+
+    # Join a channel first
     await c.send("JOIN #testchan")
-    lines = await c.recv_all(timeout=1.0)
-    for line in lines:
-        assert not line.startswith("@"), f"unexpected tagged line: {line}"
-    join_lines = [l for l in lines if "JOIN" in l]
-    assert len(join_lines) > 0
+    # Drain all JOIN responses (JOIN confirmation, NAMES list, END OF NAMES)
+    await c.recv()
+    await c.recv()
+    await c.recv()
+
+    # Directly exercise send_tagged on the server-side client object
+    server_client = server.clients.get("testserv-alice")
+    assert server_client is not None, "Client not registered on server"
+
+    # Construct a tagged channel message and send it via send_tagged
+    tagged_msg = Message(
+        tags={"event": "test.value"},
+        prefix="testserv-bob!bob@host",
+        command="PRIVMSG",
+        params=["#testchan", "hello"],
+    )
+    await server_client.send_tagged(tagged_msg)
+
+    # The client should receive the message WITHOUT the @tag block
+    line = await c.recv()
+    assert not line.startswith("@"), f"unexpected tagged line: {line}"
+    assert "PRIVMSG" in line
+    assert "#testchan" in line
+    assert "hello" in line

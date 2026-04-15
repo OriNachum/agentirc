@@ -51,9 +51,12 @@ class Client:
             pass  # Client disconnected; cleanup happens in ircd._handle_connection
 
     async def send_raw(self, line: str) -> None:
-        """Write a pre-formatted IRC line to the client socket."""
+        """Write a pre-formatted IRC line to the client socket.
+
+        Appends CRLF internally, matching ServerLink.send_raw convention.
+        """
         try:
-            self.writer.write(line.encode("utf-8"))
+            self.writer.write(f"{line}\r\n".encode("utf-8"))
             await self.writer.drain()
         except OSError:
             pass  # Client disconnected; cleanup happens in ircd._handle_connection
@@ -138,7 +141,7 @@ class Client:
         sub = msg.params[0].upper() if msg.params else ""
         if sub == "LS":
             await self.send_raw(
-                f":{self.server.config.name} CAP {self.nick or '*'} LS :message-tags\r\n"
+                f":{self.server.config.name} CAP {self.nick or '*'} LS :message-tags"
             )
         elif sub == "REQ":
             requested = msg.params[1].split() if len(msg.params) >= 2 else []
@@ -147,12 +150,12 @@ class Client:
                 self.caps.update(requested)
                 await self.send_raw(
                     f":{self.server.config.name} CAP {self.nick or '*'}"
-                    f" ACK :{' '.join(requested)}\r\n"
+                    f" ACK :{' '.join(requested)}"
                 )
             else:
                 await self.send_raw(
                     f":{self.server.config.name} CAP {self.nick or '*'}"
-                    f" NAK :{' '.join(requested)}\r\n"
+                    f" NAK :{' '.join(requested)}"
                 )
         elif sub == "END":
             pass  # no registration-gating in v1
