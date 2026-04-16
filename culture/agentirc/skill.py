@@ -23,6 +23,16 @@ class EventType(Enum):
     THREAD_CREATE = "thread_create"
     THREAD_MESSAGE = "thread_message"
     THREAD_CLOSE = "thread_close"
+    # Lifecycle + link events introduced by mesh-events feature.
+    AGENT_CONNECT = "agent.connect"
+    AGENT_DISCONNECT = "agent.disconnect"
+    CONSOLE_OPEN = "console.open"
+    CONSOLE_CLOSE = "console.close"
+    SERVER_WAKE = "server.wake"
+    SERVER_SLEEP = "server.sleep"
+    SERVER_LINK = "server.link"
+    SERVER_UNLINK = "server.unlink"
+    ROOM_CREATE = "room.create"
 
 
 @dataclass
