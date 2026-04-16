@@ -2,6 +2,8 @@
 from __future__ import annotations
 
 import asyncio
+import base64
+import json
 import logging
 from typing import TYPE_CHECKING
 
@@ -104,7 +106,7 @@ class ServerLink:
         except (ConnectionError, asyncio.IncompleteReadError):
             pass
         finally:
-            self.server._remove_link(self, squit=self._squit_received)
+            await self.server._remove_link(self, squit=self._squit_received)
             self.writer.close()
             try:
                 await self.writer.wait_closed()
@@ -198,6 +200,17 @@ class ServerLink:
 
         await self.send_burst()
         await self._send_backfill_request()
+
+        # Emit server.link so the mesh knows this link is established.
+        # v1 assumes all peers support SEVENT; cap negotiation is deferred — see plan task 12.
+        await self.server.emit_event(
+            Event(
+                type=EventType.SERVER_LINK,
+                channel=None,
+                nick=f"{SYSTEM_USER_PREFIX}{self.server.config.name}",
+                data={"peer": self.peer_name, "trust": self.trust},
+            )
+        )
 
     # --- Burst handlers ---
 
@@ -704,6 +717,54 @@ class ServerLink:
             )
         )
 
+    # --- Generic SEVENT federation ---
+
+    async def _handle_sevent(self, msg: Message) -> None:
+        """Ingest a generic federated event from a peer.
+
+        Wire format: SEVENT <origin-server> <seq> <type> <channel_or_*> :<b64-json-data>
+        """
+        if len(msg.params) < 5:
+            return
+        origin, _seq, type_str, target, b64 = msg.params[:5]
+        channel = None if target == "*" else target
+
+        # v1: direct-peer topology only — origin should match peer_name.
+        # Multi-hop mesh would need origin validation against known servers.
+        if origin != self.peer_name:
+            logger.warning("SEVENT origin %s != peer %s", origin, self.peer_name)
+
+        # Trust check: if channel-scoped, verify we should accept it
+        if channel is not None and not self._check_incoming_trust(channel):
+            return
+
+        try:
+            data = json.loads(base64.b64decode(b64))
+        except ValueError as exc:
+            logger.warning("SEVENT bad payload from %s: %s", self.peer_name, exc)
+            return
+
+        if not isinstance(data, dict):
+            logger.warning("SEVENT non-dict payload from %s", self.peer_name)
+            return
+
+        # Re-attach _origin so _surface_event_privmsg uses the correct federated prefix
+        data["_origin"] = origin
+
+        # Map the type string back to an EventType if known; keep as string otherwise
+        try:
+            type_enum = EventType(type_str)
+        except ValueError:
+            type_enum = type_str  # custom event; stays as string for future bot events
+
+        ev = Event(
+            type=type_enum,
+            channel=channel,
+            nick=data.get("nick", f"{SYSTEM_USER_PREFIX}{origin}"),
+            data=data,
+        )
+        await self.server.emit_event(ev)
+
     # --- Backfill ---
 
     async def _send_backfill_request(self) -> None:
@@ -765,6 +826,19 @@ class ServerLink:
         handler = self._RELAY_DISPATCH.get(event.type)
         if handler:
             await maybe_await(handler(self, event, origin))
+            return
+
+        # If no typed relay exists, fall back to generic SEVENT.
+        # v1 assumes all peers support SEVENT; cap negotiation is deferred — see plan task 12.
+        type_str = event.type.value if hasattr(event.type, "value") else str(event.type)
+        payload = self.server._build_event_payload(event)
+        encoded = self.server._encode_event_data(payload, type_str)
+        target = event.channel or "*"
+        # Egress trust check: channel-scoped events respect should_relay; global events always relay
+        if event.channel is not None and not self.should_relay(event.channel):
+            return
+        seq = self.server._seq  # current local seq; peer stores but doesn't re-sequence
+        await self.send_raw(f":{origin} SEVENT {origin} {seq} {type_str} {target} :{encoded}")
 
     async def _relay_message(self, event: Event, origin: str) -> None:
         target = event.channel or event.data.get("target", "")
