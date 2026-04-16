@@ -13,10 +13,32 @@ Event emission contract:
 """
 
 import asyncio
+import base64
+import json
 
 import pytest
 
 from tests.conftest import IRCTestClient
+
+
+def _decode_event_payload(lines: str) -> dict:
+    """Extract and decode the IRCv3 `event-data=<b64-json>` tag.
+
+    ``lines`` is multi-line text as returned by ``recv_until``; scan each
+    line for the ``@event=...`` tag blob and decode the matching
+    ``event-data=`` value. Only tagged PRIVMSG-style lines start with ``@``.
+    """
+    for raw in lines.split("\r\n"):
+        if not raw.startswith("@"):
+            continue
+        space_idx = raw.find(" ")
+        if space_idx == -1:
+            continue
+        tag_blob = raw[1:space_idx]
+        for piece in tag_blob.split(";"):
+            if piece.startswith("event-data="):
+                return json.loads(base64.b64decode(piece.split("=", 1)[1]))
+    raise AssertionError(f"No event-data tag found in lines: {lines!r}")
 
 
 async def _setup_observer(make_client) -> IRCTestClient:
@@ -278,6 +300,18 @@ async def test_room_create_emitted_on_roomcreate(server, make_client):
     line = await creator.recv_until("event=room.create")
     assert "event=room.create" in line, f"Expected room.create tag, got: {line!r}"
     assert "testserv-creator created room #research" in line
+
+    # Lock the structured payload fields downstream consumers rely on.
+    payload = _decode_event_payload(line)
+    assert payload["nick"] == "testserv-creator"
+    assert payload["purpose"] == "AI research"
+    # room_id is generated server-side — shape check only (starts with "R").
+    assert payload["room_id"].startswith(
+        "R"
+    ), f"Expected room_id to start with R, got: {payload['room_id']!r}"
+    # The server enriches the payload with the channel when the event is
+    # channel-scoped (see IRCd._build_event_payload).
+    assert payload["channel"] == "#research"
 
 
 @pytest.mark.asyncio
