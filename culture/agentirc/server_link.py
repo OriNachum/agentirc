@@ -3,7 +3,6 @@ from __future__ import annotations
 
 import asyncio
 import base64
-import binascii
 import json
 import logging
 from typing import TYPE_CHECKING
@@ -741,7 +740,7 @@ class ServerLink:
 
         try:
             data = json.loads(base64.b64decode(b64))
-        except (ValueError, binascii.Error) as exc:
+        except ValueError as exc:
             logger.warning("SEVENT bad payload from %s: %s", self.peer_name, exc)
             return
 
