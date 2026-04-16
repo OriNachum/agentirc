@@ -6,7 +6,7 @@ from collections import deque
 from dataclasses import dataclass
 from typing import TYPE_CHECKING
 
-from culture.agentirc.events import render_event
+from culture.agentirc.events import NO_SURFACE_EVENT_TYPES, render_event
 from culture.agentirc.skill import Event, EventType, Skill
 from culture.constants import SYSTEM_CHANNEL, SYSTEM_USER_PREFIX
 from culture.protocol import replies
@@ -29,19 +29,7 @@ class HistorySkill(Skill):
     name = "history"
     commands = {"HISTORY"}
 
-    # Event types that are NOT stored as lifecycle entries.  Must mirror
-    # IRCd._NO_SURFACE_TYPES exactly: these are either handled by the MESSAGE
-    # branch above (MESSAGE) or have their own dedicated storage (threads,
-    # topic).
-    _NO_STORE_TYPES = frozenset(
-        {
-            EventType.MESSAGE.value,
-            EventType.THREAD_CREATE.value,
-            EventType.THREAD_MESSAGE.value,
-            EventType.THREAD_CLOSE.value,
-            EventType.TOPIC.value,
-        }
-    )
+    _NO_STORE_TYPES = NO_SURFACE_EVENT_TYPES
 
     def __init__(self, maxlen: int = 10000, retention_days: int = 30):
         self.maxlen = maxlen

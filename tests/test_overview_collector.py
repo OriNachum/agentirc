@@ -90,7 +90,8 @@ async def test_collect_sees_messages(server, make_client):
         message_limit=4,
     )
     testing_room = next(r for r in mesh.rooms if r.name == "#testing")
-    # Join lifecycle events are also stored in history; filter to PRIVMSG content.
+    # History may also include lifecycle entries; assert that the sent PRIVMSG
+    # texts are present in the collected message texts.
     texts = [m.text for m in testing_room.messages]
     assert "test message one" in texts
     assert "test message two" in texts
