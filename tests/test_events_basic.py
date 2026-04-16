@@ -3,10 +3,14 @@
 import asyncio
 import base64
 import json
+from unittest.mock import patch
 
 import pytest
 
+from culture.agentirc.config import ServerConfig
+from culture.agentirc.ircd import IRCd
 from culture.agentirc.skill import Event, EventType
+from tests.conftest import IRCTestClient
 
 
 @pytest.mark.asyncio
@@ -225,12 +229,6 @@ async def test_server_sleep_emitted_on_stop(tmp_path):
     reaches connected clients before any socket teardown (i.e. stop() emits
     server.sleep at the very top).
     """
-    import asyncio
-    from unittest.mock import patch
-
-    from culture.agentirc.config import ServerConfig
-    from culture.agentirc.ircd import IRCd
-
     empty_bots = tmp_path / "_bots"
     empty_bots.mkdir()
     config = ServerConfig(name="sleepserv", host="127.0.0.1", port=0, webhook_port=0)
@@ -246,8 +244,6 @@ async def test_server_sleep_emitted_on_stop(tmp_path):
 
         # Connect a tag-capable client and join #system before stopping.
         reader, writer = await asyncio.open_connection("127.0.0.1", ircd.config.port)
-        from tests.conftest import IRCTestClient
-
         client = IRCTestClient(reader, writer)
         await client.send("CAP REQ :message-tags")
         await client.recv_until("CAP")
