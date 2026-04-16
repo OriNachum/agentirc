@@ -64,6 +64,18 @@ class IRCTestClient:
             pass
         return "\r\n".join(collected)
 
+    async def count_until_idle(self, marker: str, seconds: float = 1.0) -> int:
+        """Read lines until timeout; return count of lines containing marker."""
+        count = 0
+        try:
+            while True:
+                line = await self.recv(timeout=seconds)
+                if marker in line:
+                    count += 1
+        except (asyncio.TimeoutError, ConnectionError):
+            pass
+        return count
+
     async def close(self) -> None:
         self.writer.close()
         try:

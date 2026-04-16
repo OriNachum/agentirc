@@ -4,6 +4,15 @@ All notable changes to this project will be documented in this file.
 
 Format follows [Keep a Changelog](https://keepachangelog.com/).
 
+## [6.6.0] - 2026-04-17
+
+
+### Added
+
+- SEVENT generic S2S federation relay — lifecycle events (agent.connect, server.wake, room.create, etc.) now federate across linked servers
+- server.link and server.unlink events emitted at link handshake completion and link teardown
+- Generic fallback in relay_event() for event types not covered by typed relays
+
 ## [6.5.0] - 2026-04-16
 
 

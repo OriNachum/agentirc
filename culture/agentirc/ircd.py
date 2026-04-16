@@ -584,13 +584,28 @@ class IRCd:
             self._notify_local_quit(rc, quit_msg, notified)
             del self.remote_clients[nick]
 
-    def _remove_link(self, link: ServerLink, *, squit: bool = False) -> None:
+    async def _remove_link(self, link: ServerLink, *, squit: bool = False) -> None:
         """Remove a S2S link and all its remote clients."""
         peer_name = link.peer_name
         if peer_name and peer_name in self.links:
+            # Remove peer FIRST so server.unlink relays only to remaining peers
             del self.links[peer_name]
             # Persist our current seq -- peer saw everything up to here via real-time relay
             self._peer_acked_seq[peer_name] = self._seq
+
+            # Emit server.unlink after removing the peer from self.links so the
+            # event does NOT relay back to the peer that just dropped.
+            try:
+                await self.emit_event(
+                    Event(
+                        type=EventType.SERVER_UNLINK,
+                        channel=None,
+                        nick=f"{SYSTEM_USER_PREFIX}{self.config.name}",
+                        data={"peer": peer_name},
+                    )
+                )
+            except Exception:
+                logger.exception("Failed to emit server.unlink for %s", peer_name)
 
         self._disconnect_remote_clients(link)
 
