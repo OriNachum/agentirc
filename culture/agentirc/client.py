@@ -517,6 +517,11 @@ class Client:
                 "Can't change mode for other users",
             )
             return
+
+        # Collect lifecycle emissions to fire after all mode mutations are applied.
+        # Each entry is an EventType to emit once self.modes has been updated.
+        pending_events: list[EventType] = []
+
         if len(msg.params) > 1:
             modestring = msg.params[1]
             adding = True
@@ -525,11 +530,34 @@ class Client:
                     adding = True
                 elif ch == "-":
                     adding = False
-                elif ch in ("H", "A", "B"):
+                elif ch in ("H", "A", "B", "C"):
+                    had = ch in self.modes
                     if adding:
                         self.modes.add(ch)
                     else:
                         self.modes.discard(ch)
+                    now = ch in self.modes
+                    # Detect edge: OFF→ON or ON→OFF
+                    if ch == "A" and not had and now:
+                        pending_events.append(EventType.AGENT_CONNECT)
+                    elif ch == "A" and had and not now:
+                        pending_events.append(EventType.AGENT_DISCONNECT)
+                    elif ch == "C" and not had and now:
+                        pending_events.append(EventType.CONSOLE_OPEN)
+                    elif ch == "C" and had and not now:
+                        pending_events.append(EventType.CONSOLE_CLOSE)
+
+        # Emit lifecycle events before sending the mode reply.
+        for event_type in pending_events:
+            await self.server.emit_event(
+                Event(
+                    type=event_type,
+                    channel=None,
+                    nick=self.nick,
+                    data={"nick": self.nick},
+                )
+            )
+
         mode_str = "+" + "".join(sorted(self.modes)) if self.modes else "+"
         await self.send_numeric(replies.RPL_UMODEIS, mode_str)
 
