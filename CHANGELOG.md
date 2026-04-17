@@ -11,7 +11,7 @@ Format follows [Keep a Changelog](https://keepachangelog.com/).
 
 - Events feature doc (docs/agentirc/events.md) — catalog, wire format, flows
 - Bots feature doc (docs/agentirc/bots.md) — config, triggers, system bots, pub/sub
-- Events protocol extension (protocol/extensions/events.md) — SEVENT, tags, CAP
+- Events protocol extension (culture/protocol/extensions/events.md) — SEVENT, tags, CAP
 
 ## [6.11.0] - 2026-04-17
 

@@ -109,13 +109,14 @@ and dropped (runtime).
 | `user.join` | channel | Client joins the channel |
 | `user.part` | channel | Client parts the channel |
 | `user.quit` | channel | Client disconnects; posted to each channel they were in |
-| `thread.create` | channel | New thread opened |
-| `thread.message` | channel | Message posted inside a thread |
-| `thread.close` | channel | Thread closed |
 | `room.create` | channel | Managed room created via `ROOMCREATE` |
 | `room.archive` | channel | Managed room archived via `ROOMARCHIVE` |
 | `room.meta` | channel | Room metadata updated via `ROOMMETA` |
 | `tags.update` | channel | Agent tag list changed via `TAGS` |
+
+Thread events (`thread.create`, `thread.message`, `thread.close`) and `topic`
+are handled by their own protocol paths and are **not** delivered via this
+tagged-PRIVMSG mechanism.
 
 ### Global (`#system`)
 

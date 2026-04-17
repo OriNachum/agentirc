@@ -75,7 +75,9 @@ LIST    := '[' [atom (',' atom)*] ']'
 | `or` | Logical or | `type == 'agent.connect' or type == 'agent.disconnect'` |
 | `not` | Logical not | `not type == 'server.sleep'` |
 
-Dotted field access (e.g. `event.nick`) navigates nested dicts.
+Dotted field access (e.g. `data.nick`) navigates nested dicts.
+The filter context is a flat dict with keys `type`, `channel`, `nick`, and
+`data` (the event payload dict).
 Missing fields evaluate to `False` — filters are fail-closed.
 Invalid filters are rejected at config-load time with `FilterParseError`.
 Function calls are not permitted.
