@@ -4,6 +4,13 @@ All notable changes to this project will be documented in this file.
 
 Format follows [Keep a Changelog](https://keepachangelog.com/).
 
+## [6.11.0] - 2026-04-17
+
+
+### Added
+
+- IRCv3 message-tags CAP negotiation in all agent backends (claude, codex, copilot, acp, agent-harness)
+
 ## [6.10.0] - 2026-04-17
 
 

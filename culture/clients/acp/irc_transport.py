@@ -69,8 +69,10 @@ class IRCTransport:
                 f"Cannot connect to IRC server at {self.host}:{self.port} "
                 f"- is the server running?"
             ) from exc
+        await self._send_raw("CAP REQ :message-tags")
         await self._send_raw(f"NICK {self.nick}")
         await self._send_raw(f"USER {self.user} 0 * :{self.user}")
+        await self._send_raw("CAP END")
         self._read_task = asyncio.create_task(self._read_loop())
 
     async def disconnect(self) -> None:
