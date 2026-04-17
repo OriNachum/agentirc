@@ -24,9 +24,15 @@ _MISSING = object()
 
 class FilterParseError(Exception):
     def __init__(self, message: str, column: int = 0, expected: str = "") -> None:
+        super().__init__(message, column, expected)  # noqa: B042
         self.column = column
         self.expected = expected
-        super().__init__(message, column, expected)
+
+    def __str__(self) -> str:
+        msg = self.args[0] if self.args else ""
+        if self.expected:
+            return f"{msg} at col {self.column} (expected {self.expected})"
+        return f"{msg} at col {self.column}"
 
 
 # -------- AST nodes --------
@@ -91,6 +97,45 @@ class _Tok:
 
 _KEYWORDS = {"and", "or", "not", "in"}
 
+_SIMPLE_CHARS = {
+    "(": _Tok.LP,
+    ")": _Tok.RP,
+    "[": _Tok.LBR,
+    "]": _Tok.RBR,
+    ",": _Tok.COMMA,
+    ".": _Tok.DOT,
+}
+
+
+def _tok_string(src, i, n):
+    end = src.find("'", i + 1)
+    if end == -1:
+        raise FilterParseError("unterminated string", i, "closing quote")
+    return (_Tok.STRING, src[i + 1 : end], i), end + 1
+
+
+def _tok_number(src, i, n):
+    j = i
+    while j < n and src[j].isdigit():
+        j += 1
+    return (_Tok.NUMBER, int(src[i:j]), i), j
+
+
+def _tok_word(src, i, n):
+    j = i
+    while j < n and (src[j].isalnum() or src[j] in "_-"):
+        j += 1
+    word = src[i:j]
+    kind = _Tok.KW if word in _KEYWORDS else _Tok.IDENT
+    return (kind, word, i), j
+
+
+def _tok_operator(src, i):
+    two = src[i : i + 2]
+    if two in ("==", "!="):
+        return (_Tok.OP, two, i), i + 2
+    return None, i
+
 
 def _tokenize(src: str) -> list[tuple]:
     tokens = []
@@ -102,60 +147,25 @@ def _tokenize(src: str) -> list[tuple]:
             i += 1
             continue
         if ch == "'":
-            end = src.find("'", i + 1)
-            if end == -1:
-                raise FilterParseError("unterminated string", i, "closing quote")
-            tokens.append((_Tok.STRING, src[i + 1 : end], i))
-            i = end + 1
+            tok, i = _tok_string(src, i, n)
+            tokens.append(tok)
             continue
         if ch.isdigit():
-            j = i
-            while j < n and src[j].isdigit():
-                j += 1
-            tokens.append((_Tok.NUMBER, int(src[i:j]), i))
-            i = j
+            tok, i = _tok_number(src, i, n)
+            tokens.append(tok)
             continue
         if ch.isalpha() or ch == "_":
-            j = i
-            while j < n and (src[j].isalnum() or src[j] in "_-"):
-                j += 1
-            word = src[i:j]
-            if word in _KEYWORDS:
-                tokens.append((_Tok.KW, word, i))
-            else:
-                tokens.append((_Tok.IDENT, word, i))
-            i = j
+            tok, i = _tok_word(src, i, n)
+            tokens.append(tok)
             continue
-        if ch == "=" and i + 1 < n and src[i + 1] == "=":
-            tokens.append((_Tok.OP, "==", i))
-            i += 2
+        tok, new_i = _tok_operator(src, i)
+        if tok is not None:
+            tokens.append(tok)
+            i = new_i
             continue
-        if ch == "!" and i + 1 < n and src[i + 1] == "=":
-            tokens.append((_Tok.OP, "!=", i))
-            i += 2
-            continue
-        if ch == "(":
-            tokens.append((_Tok.LP, "(", i))
-            i += 1
-            continue
-        if ch == ")":
-            tokens.append((_Tok.RP, ")", i))
-            i += 1
-            continue
-        if ch == "[":
-            tokens.append((_Tok.LBR, "[", i))
-            i += 1
-            continue
-        if ch == "]":
-            tokens.append((_Tok.RBR, "]", i))
-            i += 1
-            continue
-        if ch == ",":
-            tokens.append((_Tok.COMMA, ",", i))
-            i += 1
-            continue
-        if ch == ".":
-            tokens.append((_Tok.DOT, ".", i))
+        simple = _SIMPLE_CHARS.get(ch)
+        if simple is not None:
+            tokens.append((simple, ch, i))
             i += 1
             continue
         raise FilterParseError(f"unexpected character {ch!r}", i, "operator / identifier")
@@ -238,7 +248,7 @@ class _Parser:
         if tok[0] == _Tok.LP:
             self.consume()
             inner = self._or()
-            self.expect(_Tok.RP, "')'")
+            self.expect(_Tok.RP, ")")
             return inner
         if tok[0] == _Tok.LBR:
             self.consume()
@@ -248,7 +258,7 @@ class _Parser:
                 while self.peek()[0] == _Tok.COMMA:
                     self.consume()
                     items.append(self._atom())
-            self.expect(_Tok.RBR, "']'")
+            self.expect(_Tok.RBR, "]")
             return ListExpr(items)
         if tok[0] == _Tok.IDENT:
             self.consume()
@@ -287,6 +297,29 @@ def _resolve(ref: FieldRef, event: dict) -> Any:
     return cur
 
 
+def _to_bool(val) -> bool:
+    if val is _MISSING:
+        return False
+    return bool(val)
+
+
+def _eval_compare(node: Compare, event: dict) -> Any:
+    left = evaluate(node.left, event)
+    right = evaluate(node.right, event)
+    if left is _MISSING or right is _MISSING:
+        return False
+    if node.op == "==":
+        return left == right
+    if node.op == "!=":
+        return left != right
+    if node.op == "in":
+        try:
+            return left in right
+        except TypeError:
+            return False
+    return False
+
+
 def evaluate(node, event: dict) -> Any:
     """Evaluate an AST *node* against *event* dict, returning a Python value."""
     if isinstance(node, Literal):
@@ -296,24 +329,11 @@ def evaluate(node, event: dict) -> Any:
     if isinstance(node, ListExpr):
         return [evaluate(i, event) for i in node.items]
     if isinstance(node, Compare):
-        left = evaluate(node.left, event)
-        right = evaluate(node.right, event)
-        if left is _MISSING or right is _MISSING:
-            return False
-        if node.op == "==":
-            return left == right
-        if node.op == "!=":
-            return left != right
-        if node.op == "in":
-            try:
-                return left in right
-            except TypeError:
-                return False
-        return False
+        return _eval_compare(node, event)
     if isinstance(node, And):
-        return bool(evaluate(node.left, event)) and bool(evaluate(node.right, event))
+        return _to_bool(evaluate(node.left, event)) and _to_bool(evaluate(node.right, event))
     if isinstance(node, Or):
-        return bool(evaluate(node.left, event)) or bool(evaluate(node.right, event))
+        return _to_bool(evaluate(node.left, event)) or _to_bool(evaluate(node.right, event))
     if isinstance(node, Not):
-        return not bool(evaluate(node.expr, event))
+        return not _to_bool(evaluate(node.expr, event))
     return False

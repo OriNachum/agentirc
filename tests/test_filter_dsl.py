@@ -3,6 +3,7 @@
 import pytest
 
 from culture.bots.filter_dsl import (
+    _MISSING,
     FilterParseError,
     compile_filter,
     evaluate,
@@ -70,6 +71,15 @@ def test_parens_for_precedence():
     assert evaluate(f, event(type="a", channel="#c")) is True
     assert evaluate(f, event(type="b", channel="#c")) is True
     assert evaluate(f, event(type="a", channel="#other")) is False
+
+
+def test_bare_missing_field_is_falsy():
+    f = compile_filter("data.missing")
+    assert evaluate(f, event()) is _MISSING
+    f2 = compile_filter("data.missing and type == 'user.join'")
+    assert evaluate(f2, event()) is False
+    f3 = compile_filter("not data.missing")
+    assert evaluate(f3, event()) is True
 
 
 def test_parse_error_message():
