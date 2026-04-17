@@ -236,3 +236,55 @@ async def make_client_b(linked_servers):
             await c.close()
         except Exception:
             pass
+
+
+@pytest_asyncio.fixture
+async def server_with_bot(server):
+    from culture.bots.bot_manager import BotManager
+    from culture.bots.config import BotConfig
+
+    def _make(**kwargs):
+        fires = kwargs.pop("fires_event", None)
+        filt = kwargs.pop("event_filter", None)
+        cfg = BotConfig(
+            name=kwargs.pop("bot_name"),
+            owner="testserv",
+            trigger_type=kwargs.pop("trigger_type", "event"),
+            event_filter=filt,
+            channels=kwargs.pop("channels", []),
+            template=kwargs.pop("template", None),
+            fires_event=fires,
+        )
+        if server.bot_manager is None:
+            server.bot_manager = BotManager(server=server)
+        server.bot_manager.register_bot(cfg)
+        return server, cfg
+
+    yield _make
+
+
+@pytest_asyncio.fixture
+async def server_with_bots(server):
+    from culture.bots.bot_manager import BotManager
+    from culture.bots.config import BotConfig
+
+    def _make(bot_kwargs_list):
+        if server.bot_manager is None:
+            server.bot_manager = BotManager(server=server)
+        cfgs = []
+        for kwargs in bot_kwargs_list:
+            fires = kwargs.pop("fires_event", None)
+            cfg = BotConfig(
+                name=kwargs.pop("bot_name"),
+                owner="testserv",
+                trigger_type=kwargs.pop("trigger_type", "event"),
+                event_filter=kwargs.pop("event_filter", None),
+                channels=kwargs.pop("channels", []),
+                template=kwargs.pop("template", None),
+                fires_event=fires,
+            )
+            server.bot_manager.register_bot(cfg)
+            cfgs.append(cfg)
+        return server, cfgs
+
+    yield _make

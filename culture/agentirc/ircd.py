@@ -186,7 +186,14 @@ class IRCd:
                 except Exception:
                     logger.exception("Failed to relay event to %s", peer_name)
 
-        # 4) Surface as tagged PRIVMSG from system-<server>.
+        # 4) Dispatch to event-triggered bots.
+        if self.bot_manager is not None:
+            try:
+                await self.bot_manager.on_event(event)
+            except Exception:
+                logger.exception("bot_manager.on_event failed")
+
+        # 5) Surface as tagged PRIVMSG from system-<server>.
         await self._surface_event_privmsg(event)
 
     _NO_SURFACE_TYPES = NO_SURFACE_EVENT_TYPES

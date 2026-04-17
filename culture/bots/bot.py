@@ -4,17 +4,68 @@ from __future__ import annotations
 
 import importlib.util
 import logging
+import time
 from pathlib import Path
-from typing import TYPE_CHECKING
+from typing import TYPE_CHECKING, Any
 
+from culture.agentirc.skill import Event, EventType
 from culture.bots.config import BOTS_DIR, BotConfig
 from culture.bots.template_engine import render_fallback, render_template
 from culture.bots.virtual_client import VirtualClient
+from culture.constants import EVENT_TYPE_RE
 
 if TYPE_CHECKING:
     from culture.agentirc.ircd import IRCd
 
 logger = logging.getLogger(__name__)
+
+
+class _DynamicEventType:
+    """Lightweight stand-in for EventType when the event type is not in the enum."""
+
+    __slots__ = ("value",)
+
+    def __init__(self, value: str) -> None:
+        self.value = value
+
+    def __str__(self) -> str:
+        return self.value
+
+
+# ---------------------------------------------------------------------------
+# Rate-limiter for fires_event — module-level state, 10 events/sec per bot
+# ---------------------------------------------------------------------------
+
+_RATE_MAX_PER_SEC = 10
+_rate_state: dict[str, list[float]] = {}
+
+
+def _check_rate(bot_name: str) -> bool:
+    """Return True if the bot may fire an event; False if rate-limited."""
+    now = time.monotonic()
+    window = _rate_state.setdefault(bot_name, [])
+    window[:] = [t for t in window if now - t < 1.0]
+    if len(window) >= _RATE_MAX_PER_SEC:
+        return False
+    window.append(now)
+    return True
+
+
+def _render_data_values(data: dict[str, Any], ctx: dict[str, Any]) -> dict[str, Any]:
+    """Render Jinja2 template strings inside an EmitEventSpec data dict."""
+    from jinja2.sandbox import SandboxedEnvironment
+
+    env = SandboxedEnvironment()
+    result = {}
+    for key, val in data.items():
+        if isinstance(val, str):
+            try:
+                result[key] = env.from_string(val).render(ctx)
+            except Exception:
+                result[key] = val
+        else:
+            result[key] = val
+    return result
 
 
 class Bot:
@@ -101,7 +152,46 @@ class Bot:
         if self.config.dm_owner and self.config.owner:
             await self.virtual_client.send_dm(self.config.owner, message)
 
+        # Fire follow-on event if configured
+        await self._maybe_fire_event(payload)
+
         return message
+
+    async def _maybe_fire_event(self, payload: dict) -> None:
+        """Emit a follow-on event if fires_event is configured on this bot."""
+        spec = self.config.fires_event
+        if spec is None:
+            return
+
+        if not EVENT_TYPE_RE.match(spec.type):
+            logger.warning(
+                "Bot %s has invalid fires_event.type %r — skipping", self.config.name, spec.type
+            )
+            return
+
+        if not _check_rate(self.config.name):
+            logger.warning("Bot %s rate-limited on fires_event", self.config.name)
+            return
+
+        rendered_data = _render_data_values(spec.data, payload)
+
+        # Prefer a real EventType enum member; fall back to dynamic type for custom events.
+        try:
+            event_type = EventType(spec.type)
+        except ValueError:
+            event_type = _DynamicEventType(spec.type)
+
+        try:
+            await self.server.emit_event(
+                Event(
+                    type=event_type,
+                    channel=None,
+                    nick=self.config.name,
+                    data=rendered_data,
+                )
+            )
+        except Exception:
+            logger.exception("Bot %s failed to emit fires_event", self.config.name)
 
     def _render_message(self, payload: dict) -> str:
         """Render message using template or fallback."""

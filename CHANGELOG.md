@@ -4,6 +4,15 @@ All notable changes to this project will be documented in this file.
 
 Format follows [Keep a Changelog](https://keepachangelog.com/).
 
+## [6.9.0] - 2026-04-17
+
+
+### Added
+
+- Bot event-trigger type with filter DSL evaluation
+- fires_event output for pub/sub bot chains with rate limiting
+- EmitEventSpec config and _DynamicEventType for custom event types
+
 ## [6.8.0] - 2026-04-17
 
 

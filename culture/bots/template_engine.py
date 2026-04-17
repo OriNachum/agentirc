@@ -5,7 +5,7 @@ from __future__ import annotations
 import json
 import re
 
-_TOKEN_RE = re.compile(r"\{(body(?:\.[^}]+)?)\}")
+_TOKEN_RE = re.compile(r"\{(\w+(?:\.[^}]+)?)\}")
 
 
 def _resolve_path(data: dict, path: str) -> str | None:
@@ -27,17 +27,22 @@ def _resolve_path(data: dict, path: str) -> str | None:
 
 
 def render_template(template: str, payload: dict) -> str | None:
-    """Render a template string with {body.field.subfield} tokens.
+    """Render a template string with ``{key.field.subfield}`` tokens.
+
+    Payload keys are available directly (e.g. ``{event.nick}``) and
+    via the ``body`` alias (e.g. ``{body.event.nick}``).  ``body``
+    always points to the full payload for backward compatibility.
 
     Args:
-        template: Template string with {body.x.y} placeholders.
-        payload: The webhook JSON payload (accessible as ``body``).
+        template: Template string with ``{key.path}`` placeholders.
+        payload: The incoming payload dict.
 
     Returns:
         The rendered string, or None if any token could not be resolved
         (caller should fall back based on the bot's ``fallback`` config).
     """
-    wrapper = {"body": payload}
+    # body last so it always wins even if payload contains a "body" key.
+    wrapper = {**(payload if isinstance(payload, dict) else {}), "body": payload}
 
     def _replace(match: re.Match) -> str:
         path = match.group(1)

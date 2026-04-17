@@ -13,6 +13,9 @@ from culture.bots.config import (
     load_bot_config,
     save_bot_config,
 )
+from culture.bots.filter_dsl import FilterParseError, compile_filter, evaluate
+
+_FILTER_ERRORS = (FilterParseError, TypeError)
 
 if TYPE_CHECKING:
     from culture.agentirc.ircd import IRCd
@@ -41,12 +44,76 @@ class BotManager:
                 if config.archived:
                     logger.info("Skipping archived bot %s", config.name)
                     continue
+                # Compile event filter at load time
+                if config.trigger_type == "event" and config.event_filter:
+                    try:
+                        config._compiled_filter = compile_filter(config.event_filter)
+                    except _FILTER_ERRORS as exc:
+                        logger.error("Bot %s has invalid filter, skipping: %s", config.name, exc)
+                        continue
                 bot = Bot(config, self.server)
                 self.bots[config.name] = bot
                 await bot.start()
                 logger.info("Loaded bot %s", config.name)
             except Exception:
                 logger.exception("Failed to load bot from %s", bot_dir)
+
+    def register_bot(self, config: BotConfig) -> Bot:
+        """Register a bot from config (used by tests and system bot loader)."""
+        if config.trigger_type == "event" and config.event_filter:
+            try:
+                config._compiled_filter = compile_filter(config.event_filter)
+            except _FILTER_ERRORS as exc:
+                raise ValueError(f"bot {config.name} has invalid filter: {exc}") from exc
+        bot = Bot(config, self.server)
+        self.bots[config.name] = bot
+        return bot
+
+    async def _try_start_bot(self, bot: Bot) -> bool:
+        """Lazily start a bot on first matching event. Returns True if ready."""
+        if bot.active:
+            return True
+        if getattr(bot, "_starting", False):
+            return False
+        bot._starting = True  # type: ignore[attr-defined]
+        try:
+            await bot.start()
+            return True
+        except Exception:
+            logger.exception("Bot %s failed to start", bot.config.name)
+            return False
+        finally:
+            bot._starting = False  # type: ignore[attr-defined]
+
+    async def on_event(self, event) -> None:
+        """Evaluate event-triggered bots against an event and dispatch matches."""
+        # Snapshot: handle() may call emit_event() which re-enters on_event().
+        bots_snapshot = list(self.bots.values())
+        for bot in bots_snapshot:
+            cfg = bot.config
+            if cfg.trigger_type != "event":
+                continue
+            compiled = getattr(cfg, "_compiled_filter", None)
+            if compiled is None:
+                continue
+            ctx = {
+                "type": event.type.value if hasattr(event.type, "value") else str(event.type),
+                "channel": event.channel,
+                "nick": event.nick,
+                "data": dict(event.data),
+            }
+            try:
+                if not evaluate(compiled, ctx):
+                    continue
+            except Exception:
+                logger.exception("Filter evaluation failed for bot %s", cfg.name)
+                continue
+            if not await self._try_start_bot(bot):
+                continue
+            try:
+                await bot.handle({"event": ctx})
+            except Exception:
+                logger.exception("Bot %s handle() failed for event %s", cfg.name, event.type)
 
     async def create_bot(self, config: BotConfig) -> Bot:
         """Create a new bot: write config to disk and start it."""

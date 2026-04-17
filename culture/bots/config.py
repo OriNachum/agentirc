@@ -6,11 +6,20 @@ import os
 import tempfile
 from dataclasses import dataclass, field
 from pathlib import Path
+from typing import Any
 
 import yaml
 
 BOTS_DIR = Path(os.path.expanduser("~/.culture/bots"))
 BOT_CONFIG_FILE = "bot.yaml"
+
+
+@dataclass
+class EmitEventSpec:
+    """Specification for an event emitted by a bot after handling a trigger."""
+
+    type: str = ""
+    data: dict[str, Any] = field(default_factory=dict)
 
 
 @dataclass
@@ -30,6 +39,8 @@ class BotConfig:
     archived: bool = False
     archived_at: str = ""
     archived_reason: str = ""
+    event_filter: str | None = None
+    fires_event: EmitEventSpec | None = None
 
     @property
     def has_handler(self) -> bool:
@@ -47,6 +58,18 @@ def load_bot_config(path: Path) -> BotConfig:
     trigger_section = raw.get("trigger", {})
     output_section = raw.get("output", {})
 
+    # Parse optional fires_event block
+    fires_event_raw = output_section.get("fires_event")
+    fires_event: EmitEventSpec | None = None
+    if isinstance(fires_event_raw, dict):
+        fe_type = fires_event_raw.get("type", "")
+        if not isinstance(fe_type, str):
+            fe_type = str(fe_type)
+        fe_data = fires_event_raw.get("data")
+        if not isinstance(fe_data, dict):
+            fe_data = {}
+        fires_event = EmitEventSpec(type=fe_type, data=fe_data)
+
     return BotConfig(
         name=bot_section.get("name", ""),
         owner=bot_section.get("owner", ""),
@@ -61,6 +84,8 @@ def load_bot_config(path: Path) -> BotConfig:
         archived=bot_section.get("archived", False),
         archived_at=bot_section.get("archived_at", ""),
         archived_reason=bot_section.get("archived_reason", ""),
+        event_filter=trigger_section.get("filter"),
+        fires_event=fires_event,
     )
 
 
@@ -79,18 +104,27 @@ def save_bot_config(path: Path, config: BotConfig) -> None:
         bot_section["archived_at"] = config.archived_at
         bot_section["archived_reason"] = config.archived_reason
 
+    trigger_section: dict[str, Any] = {"type": config.trigger_type}
+    if config.event_filter:
+        trigger_section["filter"] = config.event_filter
+
+    output_section: dict[str, Any] = {
+        "channels": config.channels,
+        "dm_owner": config.dm_owner,
+        "mention": config.mention,
+        "template": config.template,
+        "fallback": config.fallback,
+    }
+    if config.fires_event:
+        output_section["fires_event"] = {
+            "type": config.fires_event.type,
+            "data": config.fires_event.data,
+        }
+
     data = {
         "bot": bot_section,
-        "trigger": {
-            "type": config.trigger_type,
-        },
-        "output": {
-            "channels": config.channels,
-            "dm_owner": config.dm_owner,
-            "mention": config.mention,
-            "template": config.template,
-            "fallback": config.fallback,
-        },
+        "trigger": trigger_section,
+        "output": output_section,
     }
 
     yaml_str = yaml.dump(data, default_flow_style=False)
