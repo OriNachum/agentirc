@@ -107,7 +107,7 @@ _SIMPLE_CHARS = {
 }
 
 
-def _tok_string(src, i, n):
+def _tok_string(src, i):
     end = src.find("'", i + 1)
     if end == -1:
         raise FilterParseError("unterminated string", i, "closing quote")
@@ -147,7 +147,7 @@ def _tokenize(src: str) -> list[tuple]:
             i += 1
             continue
         if ch == "'":
-            tok, i = _tok_string(src, i, n)
+            tok, i = _tok_string(src, i)
             tokens.append(tok)
             continue
         if ch.isdigit():
