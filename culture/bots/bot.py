@@ -144,9 +144,27 @@ class Bot:
         if self.config.mention:
             message = f"@{self.config.mention} {message}"
 
-        # Send to configured channels
-        for channel in self.config.channels:
-            await self.virtual_client.send_to_channel(channel, message)
+        # Determine target channels: use configured channels, or fall back to
+        # the event's channel for event-triggered bots with no pre-configured channels.
+        target_channels = list(self.config.channels)
+        dynamic_broadcast = False
+        if not target_channels and self.config.trigger_type == "event":
+            event_ctx = payload.get("event", {})
+            event_channel = event_ctx.get("channel") if isinstance(event_ctx, dict) else None
+            if event_channel:
+                target_channels = [event_channel]
+                dynamic_broadcast = True
+
+        for channel in target_channels:
+            if dynamic_broadcast:
+                # Broadcast directly without joining — avoids persistent channel
+                # presence and spurious user.join events for the bot itself.
+                await self.virtual_client.broadcast_to_channel(channel, message)
+            else:
+                ch_obj = self.server.channels.get(channel)
+                if ch_obj is None or self.virtual_client not in ch_obj.members:
+                    await self.virtual_client.join_channel(channel)
+                await self.virtual_client.send_to_channel(channel, message)
 
         # DM the owner if configured
         if self.config.dm_owner and self.config.owner:

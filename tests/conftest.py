@@ -239,6 +239,30 @@ async def make_client_b(linked_servers):
 
 
 @pytest_asyncio.fixture
+async def server_welcome_disabled(tmp_path):
+    """Server instance with the welcome system bot disabled via config."""
+    empty_bots = tmp_path / "_bots"
+    empty_bots.mkdir()
+    config = ServerConfig(
+        name="testserv",
+        host="127.0.0.1",
+        port=0,
+        webhook_port=0,
+        system_bots={"welcome": {"enabled": False}},
+    )
+    with (
+        patch("culture.bots.bot_manager.BOTS_DIR", empty_bots),
+        patch("culture.bots.config.BOTS_DIR", empty_bots),
+        patch("culture.bots.bot.BOTS_DIR", empty_bots),
+    ):
+        ircd = IRCd(config)
+        await ircd.start()
+        ircd.config.port = ircd._server.sockets[0].getsockname()[1]
+        yield ircd
+        await ircd.stop()
+
+
+@pytest_asyncio.fixture
 async def server_with_bot(server):
     from culture.bots.bot_manager import BotManager
     from culture.bots.config import BotConfig
