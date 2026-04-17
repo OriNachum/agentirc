@@ -127,7 +127,7 @@ event types at module import time.
 |----------|-----------|---------|
 | `register` | `register(event_type: str, fn: RenderFn) -> None` | Attach a render function to a dotted event type (e.g. `"mybot.alert"`). `RenderFn` is `(data: dict, channel: str \| None) -> str`. |
 | `validate_event_type` | `validate_event_type(name: str) -> bool` | Returns `True` if `name` matches the dotted-lowercase convention (`EVENT_TYPE_RE` in `culture.constants`). |
-| `render_event` | `render_event(event_type, data, channel) -> str` | Look up and invoke the render template; falls back to `f"{type} {data}"` on missing template or exception. |
+| `render_event` | `render_event(event_type, data, channel) -> str` | Look up and invoke the render template; falls back to `f"{event_type} {data}"` on missing template or exception. |
 
 Templates are presentation-only — the structured payload is attached as IRCv3
 tags by the server's emit path regardless of what the template returns, so

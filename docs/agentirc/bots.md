@@ -97,7 +97,7 @@ The DSL grammar above is exposed by `culture/bots/filter_dsl.py`:
 
 | Function | Signature | Purpose |
 |----------|-----------|---------|
-| `render_template` | `render_template(template, payload)` → `str \| None` | Expand `{dot.path}` tokens against a payload dict. Returns `None` if any token cannot be resolved (caller should use the bot's `fallback` config). Payload fields are available at top level (`{event.nick}`) and via the `body` alias (`{body.event.nick}`). |
+| `render_template` | `render_template(template: str, payload: dict \| str)` → `str \| None` | Expand `{dot.path}` tokens against a payload. Returns `None` if any token cannot be resolved (caller should use the bot's `fallback` config). For dict payloads, fields are available at top level (`{event.nick}`); any payload (dict or str) is also exposed via the `body` alias (`{body.event.nick}`). |
 | `render_fallback` | `render_fallback(payload, mode="json")` → `str` | Stringify a payload when template resolution fails. `mode="json"` uses compact JSON; any other value falls back to `str(payload)`. |
 
 ## `fires_event` — Pub/Sub Chains
