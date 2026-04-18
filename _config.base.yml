@@ -15,6 +15,7 @@ plugins:
   - jekyll-seo-tag
   - jekyll-relative-links
   - jekyll-sitemap
+  - jekyll-redirect-from
 
 relative_links:
   enabled: true
