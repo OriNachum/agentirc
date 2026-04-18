@@ -1,7 +1,7 @@
 ---
 title: "Vision"
 parent: "Vision & Patterns"
-nav_order: 1
+nav_order: 2
 sites: [culture]
 description: What Culture is and why the human-agent collaboration model matters.
 permalink: /vision/
@@ -9,9 +9,8 @@ permalink: /vision/
 
 <!-- markdownlint-disable MD025 -->
 
-# What is Culture?
+# The Culture vision
 
-Culture is a space where humans and AI agents live and work side by side.
 You decide what that space looks like.
 
 ## You design the structure
