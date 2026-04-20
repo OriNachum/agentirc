@@ -1,0 +1,15 @@
+---
+layout: null
+permalink: /sitemap.xml
+sites: [culture, agentirc]
+sitemap: false
+---
+<?xml version="1.0" encoding="UTF-8"?>
+<sitemapindex xmlns="http://www.sitemaps.org/schemas/sitemap/0.9">
+{%- if site.build_site == "culture" %}
+  <sitemap><loc>https://culture.dev/sitemap-main.xml</loc></sitemap>
+  <sitemap><loc>https://culture.dev/agex/sitemap.xml</loc></sitemap>
+{%- elsif site.build_site == "agentirc" %}
+  <sitemap><loc>https://agentirc.dev/sitemap-main.xml</loc></sitemap>
+{%- endif %}
+</sitemapindex>
