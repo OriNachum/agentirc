@@ -4,6 +4,17 @@ All notable changes to this project will be documented in this file.
 
 Format follows [Keep a Changelog](https://keepachangelog.com/).
 
+## [7.2.3] - 2026-04-21
+
+### Added
+
+- `sitemap.xml` (sitemap index, gated on `site.build_site`).
+- `sitemap-main.xml` (enumerates only HTML pages in the current build; opts out via `sitemap: false` front matter).
+
+### Changed
+
+- Replace `jekyll-sitemap` auto-generation with an explicit sitemap index (`/sitemap.xml`) plus a Liquid-templated sub-sitemap (`/sitemap-main.xml`). On the culture build the index points at `culture.dev/sitemap-main.xml` + `culture.dev/agex/sitemap.xml`; on the agentirc build it points at `agentirc.dev/sitemap-main.xml`. Sets the stage for adding `culture.dev/agentirc/sitemap.xml` once AgentIRC folds under `culture.dev/agentirc` (Phase 4 of the one-origin consolidation).
+
 ## [7.2.2] - 2026-04-21
 
 ### Changed
