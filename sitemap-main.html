@@ -11,6 +11,7 @@ sitemap: false
   {%- unless page.url -%}{%- continue -%}{%- endunless -%}
   {%- if page.url contains "/agentirc/" -%}{%- continue -%}{%- endif -%}
   {%- if page.url contains "/agex/" -%}{%- continue -%}{%- endif -%}
+  {%- if page.url contains "/citation-cli/" -%}{%- continue -%}{%- endif -%}
   {%- assign ext = page.url | split: "." | last -%}
   {%- if page.url contains "." and ext != "html" -%}{%- continue -%}{%- endif -%}
   <url><loc>{{ page.url | absolute_url | xml_escape }}</loc></url>
