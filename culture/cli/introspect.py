@@ -89,7 +89,18 @@ def learn(topic: str | None) -> tuple[str, int]:
     return _resolve("learn", topic)
 
 
-_NAMESPACES = ("agex", "server", "agent", "mesh", "bot", "channel", "skills")
+_NAMESPACES = (
+    "devex",
+    "server",
+    "agent",
+    "mesh",
+    "bot",
+    "channel",
+    "skills",
+    "afi",
+    "identity",
+    "secret",
+)
 
 
 def _culture_explain(_topic: str | None) -> tuple[str, int]:
