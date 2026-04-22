@@ -53,6 +53,9 @@ def _capture_devex(argv: list[str]) -> tuple[str, int]:
         with contextlib.redirect_stdout(buf), contextlib.redirect_stderr(buf):
             _run_devex(argv)
     except SystemExit as exc:  # NOSONAR S5754 — see docstring
+        # typer calls sys.exit() on completion even for success, so this
+        # is the normal exit path; the trailing `return ... 0` only runs
+        # if _run_devex somehow returns without raising (defensive).
         code = exc.code
         if code is None:
             return buf.getvalue(), 0

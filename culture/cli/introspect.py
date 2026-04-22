@@ -90,13 +90,13 @@ def learn(topic: str | None) -> tuple[str, int]:
 
 
 _NAMESPACES = (
-    "devex",
-    "server",
     "agent",
+    "server",
     "mesh",
-    "bot",
     "channel",
+    "bot",
     "skills",
+    "devex",
     "afi",
     "identity",
     "secret",
