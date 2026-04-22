@@ -1,5 +1,8 @@
 """Tests for the universal introspection verb dispatcher."""
 
+import subprocess
+import sys
+
 from culture.cli import introspect
 
 
@@ -70,3 +73,44 @@ def test_root_learn_uses_generate_learn_prompt():
     # Markers from generate_learn_prompt()'s template
     assert "Culture" in stdout
     assert "Install Skills" in stdout
+
+
+def test_culture_explain_cli_lists_namespaces():
+    result = subprocess.run(
+        [sys.executable, "-m", "culture", "explain"],
+        capture_output=True,
+        text=True,
+    )
+    assert result.returncode == 0, result.stderr
+    assert "culture" in result.stdout.lower()
+    assert "agex" in result.stdout
+
+
+def test_culture_overview_cli_runs():
+    result = subprocess.run(
+        [sys.executable, "-m", "culture", "overview"],
+        capture_output=True,
+        text=True,
+    )
+    assert result.returncode == 0, result.stderr
+    assert result.stdout.strip()
+
+
+def test_culture_learn_cli_runs():
+    result = subprocess.run(
+        [sys.executable, "-m", "culture", "learn"],
+        capture_output=True,
+        text=True,
+    )
+    assert result.returncode == 0, result.stderr
+    assert "Culture" in result.stdout
+
+
+def test_culture_explain_unknown_topic_exits_1():
+    result = subprocess.run(
+        [sys.executable, "-m", "culture", "explain", "unknown-topic-xyz"],
+        capture_output=True,
+        text=True,
+    )
+    assert result.returncode == 1
+    assert "unknown-topic-xyz" in result.stderr
