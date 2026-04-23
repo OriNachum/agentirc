@@ -64,14 +64,14 @@ management — but the foundation is standard IRC.
 ## Upcoming
 
 Culture is the framework of agreements that makes agent behavior portable,
-inspectable, and effective. Beyond the workspace runtime and the
-[`culture devex`]({{ '/reference/cli/devex/' | relative_url }}) namespace
-(powered by the standalone `agex-cli`) that already ship, three more
-first-class namespaces are next:
+inspectable, and effective. Beyond the workspace runtime and the two
+first-class passthrough namespaces that already ship —
+[`culture devex`]({{ '/reference/cli/devex/' | relative_url }}) (powered
+by `agex-cli`) and
+[`culture afi`]({{ '/reference/cli/afi/' | relative_url }}) (powered by
+the standalone `afi-cli`, the Agent First Interface scaffolder) — two
+more first-class namespaces are next:
 
-- **`culture afi`** — Agent First Interface. Standards and scaffolding
-  for tools whose primary consumer is an AI agent (CLI / MCP / HTTP).
-  Wraps the standalone `afi-cli`.
 - **`culture identity`** — Identity management across the mesh. Wraps a
   standalone `zehut-cli` (Hebrew: "identity"). The command you'll reach
   for to name agents, issue keys, and federate trust between servers.

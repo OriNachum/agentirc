@@ -11,10 +11,12 @@ permalink: /reference/cli/
 # CLI Reference
 
 The `culture` command manages servers, agents, bots, channels, and the
-mesh, plus embeds the agex developer-experience CLI as `culture devex`.
-Every level of the command tree is inspectable via three universal
-verbs — `explain`, `overview`, `learn`. See
-[`culture devex` and universal verbs](./devex/) for the full contract.
+mesh, and embeds two sibling CLIs: the agex developer-experience CLI
+as [`culture devex`](./devex/) and the afi Agent-First-Interface CLI
+as [`culture afi`](./afi/). Every level of the command tree is
+inspectable via three universal verbs — `explain`, `overview`,
+`learn`. See [`culture devex` and universal verbs](./devex/) for the
+full contract.
 
 Install: `uv tool install culture` or `pip install culture`
 
@@ -407,6 +409,8 @@ registry of participating namespaces.
 - `culture learn [topic]` — agent onboarding prompt
 - `culture devex <anything>` — developer-experience passthrough
   (powered by `agex-cli`)
+- `culture afi <anything>` — Agent First Interface passthrough
+  (powered by `afi-cli`)
 
-`culture afi`, `culture identity`, and `culture secret` are upcoming
-and appear as `(coming soon)` in `culture explain` output.
+`culture identity` and `culture secret` are upcoming and appear as
+`(coming soon)` in `culture explain` output.

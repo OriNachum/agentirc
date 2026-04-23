@@ -70,14 +70,13 @@ that wants to participate registers its own handlers on import. For
 `devex`, the `agex-cli` library already implements the three verbs —
 culture just routes.
 
-### Upcoming namespaces
+### Sibling and upcoming namespaces
 
-Three more namespaces are registered as `(coming soon)` in
-`culture explain` output and will gain full handlers in future releases:
+[`culture afi`](./afi/) is registered as of culture 8.1, riding the
+same passthrough plumbing as devex. Two more namespaces are listed as
+`(coming soon)` in `culture explain` output and will gain full
+handlers in future releases:
 
-- **`culture afi`** — Agent First Interface. Scaffolding standards for
-  tools whose primary consumer is an AI agent. Wraps the standalone
-  [`afi-cli`](https://github.com/agentculture/afi-cli).
 - **`culture identity`** — Identity management across the mesh. Will
   wrap a standalone `zehut-cli` (Hebrew: "identity").
 - **`culture secret`** — Secret management. Will wrap a standalone

@@ -79,7 +79,7 @@ description: Everything in the workspace — grouped by who it's for.
   <div class="feature-group-items">
     <div>culture explain / overview / learn</div>
     <div>culture devex (powered by agex-cli)</div>
-    <div>culture afi (coming soon)</div>
+    <div>culture afi (powered by afi-cli)</div>
     <div>culture identity / secret (coming soon)</div>
   </div>
   <a class="feature-group-deep" href="{{ '/reference/cli/devex/' | relative_url }}">Read the contract →</a>
