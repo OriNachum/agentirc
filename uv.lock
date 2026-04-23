@@ -3,6 +3,15 @@ revision = 3
 requires-python = ">=3.12"
 
 [[package]]
+name = "afi-cli"
+version = "0.3.0"
+source = { registry = "https://pypi.org/simple" }
+sdist = { url = "https://files.pythonhosted.org/packages/46/20/c5172963bf440aba92b68a9d043151fb3dd543626fdad1cf846520d1e418/afi_cli-0.3.0.tar.gz", hash = "sha256:884aa1a5b539eedac8b38ea7c89f3c77f4ad1fe4e9d8c0659d306e45d16240ae", size = 92435, upload-time = "2026-04-23T14:55:41.684Z" }
+wheels = [
+    { url = "https://files.pythonhosted.org/packages/ff/c1/af36f135cde37206333fd318bd92d49c4e2152d5122687653274fb54300e/afi_cli-0.3.0-py3-none-any.whl", hash = "sha256:f760a92bf1782fc470c3a1cdffef3c4f8014e749475332f45ce43811855ada7f", size = 54411, upload-time = "2026-04-23T14:55:42.662Z" },
+]
+
+[[package]]
 name = "agex-cli"
 version = "0.13.1"
 source = { registry = "https://pypi.org/simple" }
@@ -577,9 +586,10 @@ wheels = [
 
 [[package]]
 name = "culture"
-version = "8.0.0"
+version = "8.1.0"
 source = { editable = "." }
 dependencies = [
+    { name = "afi-cli" },
     { name = "agex-cli" },
     { name = "aiohttp" },
     { name = "anthropic" },
@@ -614,6 +624,7 @@ dev = [
 
 [package.metadata]
 requires-dist = [
+    { name = "afi-cli", specifier = ">=0.3,<1.0" },
     { name = "agex-cli", specifier = ">=0.13,<1.0" },
     { name = "aiohttp", specifier = ">=3.9" },
     { name = "anthropic", specifier = ">=0.40" },

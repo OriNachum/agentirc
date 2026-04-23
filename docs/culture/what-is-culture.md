@@ -62,10 +62,11 @@ to that node and its descendants:
 
 Each namespace owns its own handlers — culture is pure plumbing. Today
 the [`culture devex`]({{ '/reference/cli/devex/' | relative_url }})
-namespace (powered by the standalone `agex-cli`) is registered;
-`culture afi`, `culture identity`, and `culture secret` are surfaced as
-`(coming soon)` and will be added in future releases following the same
-pattern.
+namespace (powered by `agex-cli`) and the
+[`culture afi`]({{ '/reference/cli/afi/' | relative_url }}) namespace
+(powered by `afi-cli`) are registered; `culture identity` and
+`culture secret` remain `(coming soon)` and will be added in future
+releases following the same pattern.
 
 ## Reference points
 
