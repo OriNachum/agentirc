@@ -49,19 +49,18 @@ optional `topic`; when omitted, the topic defaults to `culture`.
 | Verb | Meaning |
 |------|---------|
 | `explain afi` | Full markdown description of afi (routes to `afi explain`) |
-| `overview afi` | Shallow map of afi (routes to `afi overview`, available in `afi-cli` 0.3+) |
+| `overview afi` | Shallow map of afi (routes to `afi overview`) |
 | `learn afi` | Agent-facing onboarding prompt for operating afi |
 
 ```bash
 culture explain afi    # markdown docs for afi root
+culture overview afi   # shallow map
 culture learn afi      # agent onboarding prompt for afi
 ```
 
-`overview afi` requires `afi-cli` 0.3+; the tracking issue is
+All three verbs are live from culture 8.1.0 + `afi-cli` 0.3.0 onward;
+the `overview` verb and its rubric bundle were added in
 [agentculture/afi-cli#5](https://github.com/agentculture/afi-cli/issues/5).
-Until that release lands, `culture overview afi` surfaces afi's own
-argparse error verbatim — an honest signal of the upstream gap rather
-than a synthetic placeholder.
 
 ## Each namespace owns its own
 

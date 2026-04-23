@@ -38,6 +38,18 @@ def test_culture_afi_learn_runs():
     assert result.stdout.strip()
 
 
+def test_culture_afi_overview_runs():
+    # afi-cli 0.3+ exposes `overview`; our pin guarantees it.
+    result = subprocess.run(
+        [sys.executable, "-m", "culture", "afi", "overview"],
+        capture_output=True,
+        text=True,
+        check=False,
+    )
+    assert result.returncode == 0, result.stderr
+    assert result.stdout.strip()
+
+
 def test_culture_afi_help_shows_argparse_help():
     result = subprocess.run(
         [sys.executable, "-m", "culture", "afi", "--help"],
@@ -64,6 +76,17 @@ def test_culture_explain_afi_via_universal_verb():
 def test_culture_learn_afi_via_universal_verb():
     result = subprocess.run(
         [sys.executable, "-m", "culture", "learn", "afi"],
+        capture_output=True,
+        text=True,
+        check=False,
+    )
+    assert result.returncode == 0, result.stderr
+    assert result.stdout.strip()
+
+
+def test_culture_overview_afi_via_universal_verb():
+    result = subprocess.run(
+        [sys.executable, "-m", "culture", "overview", "afi"],
         capture_output=True,
         text=True,
         check=False,

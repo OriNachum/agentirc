@@ -21,7 +21,7 @@ dependencies = [
     "aiohttp>=3.9",
     "textual>=1.0",
     "agex-cli>=0.13,<1.0",
-    "afi-cli>=0.2,<1.0",
+    "afi-cli>=0.3,<1.0",
 ]
 
 [project.urls]

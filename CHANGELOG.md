@@ -9,8 +9,8 @@ Format follows [Keep a Changelog](https://keepachangelog.com/).
 ### Added
 
 - `culture afi` namespace — passthrough to the standalone `afi-cli` (Agent First Interface scaffolder) with argparse-REMAINDER argument forwarding, parallel to `culture devex`.
-- Universal verbs (`explain` / `overview` / `learn`) now register the `afi` topic; `culture explain` no longer marks `culture afi` as coming-soon. `culture overview afi` currently surfaces an upstream error because `afi overview` lands in `afi-cli` 0.3 (tracking: agentculture/afi-cli#5).
-- `afi-cli>=0.2,<1.0` as a library dependency.
+- Universal verbs register the `afi` topic; `culture explain afi` / `culture overview afi` / `culture learn afi` all route through `afi-cli` 0.3+ and `culture explain` no longer marks `culture afi` as coming-soon.
+- `afi-cli>=0.3,<1.0` as a library dependency (0.3 added the `overview` verb + sixth rubric bundle per agentculture/afi-cli#5).
 - `culture/cli/_passthrough.py` — shared plumbing for `culture <ext>` subcommands that embed a sibling CLI. Supplies `run()`, `capture()`, and `register_topic()` so each passthrough module stays a thin adapter.
 
 ### Changed
