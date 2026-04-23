@@ -68,6 +68,18 @@ def _resolve(verb: str, topic: str | None) -> tuple[str, int]:
     effective = topic if topic is not None else "culture"
     handler = registry.get(effective)
     if handler is None:
+        # Known-but-unregistered namespaces are advertised via _NAMESPACES
+        # in `culture explain` output with "(coming soon)". Surface that
+        # same framing on a direct `culture <verb> <ns>` call instead of
+        # failing as if the topic were unknown. Exit 0 because this is a
+        # known future state, not a user error.
+        if effective in _NAMESPACES:
+            return (
+                f"`culture {effective}` — coming soon. "
+                f"Not yet implemented. Run `culture explain` to see the "
+                f"current registry of namespaces.\n",
+                0,
+            )
         available = sorted(registry.keys())
         msg = (
             f"unknown topic '{effective}' for {verb};"
@@ -89,7 +101,18 @@ def learn(topic: str | None) -> tuple[str, int]:
     return _resolve("learn", topic)
 
 
-_NAMESPACES = ("agex", "server", "agent", "mesh", "bot", "channel", "skills")
+_NAMESPACES = (
+    "agent",
+    "server",
+    "mesh",
+    "channel",
+    "bot",
+    "skills",
+    "devex",
+    "afi",
+    "identity",
+    "secret",
+)
 
 
 def _culture_explain(_topic: str | None) -> tuple[str, int]:

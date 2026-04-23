@@ -50,28 +50,33 @@ def test_verbs_have_independent_registries():
 
 def test_root_explain_mentions_culture_and_namespaces():
     # Module import registers the root handler as a side effect
-    from culture.cli import introspect as intr
-
-    stdout, code = intr.explain(None)
+    stdout, code = introspect.explain(None)
     assert code == 0
     assert "culture" in stdout.lower()
-    # Expected namespaces named in the root handler
-    for ns in ("agex", "server", "agent", "mesh", "bot", "channel", "skills"):
+    # Expected namespaces named in the root handler (existing + upcoming)
+    for ns in (
+        "devex",
+        "server",
+        "agent",
+        "mesh",
+        "bot",
+        "channel",
+        "skills",
+        "afi",
+        "identity",
+        "secret",
+    ):
         assert ns in stdout
 
 
 def test_root_overview_is_nonempty():
-    from culture.cli import introspect as intr
-
-    stdout, code = intr.overview(None)
+    stdout, code = introspect.overview(None)
     assert code == 0
     assert stdout.strip()
 
 
 def test_root_learn_uses_generate_learn_prompt():
-    from culture.cli import introspect as intr
-
-    stdout, code = intr.learn(None)
+    stdout, code = introspect.learn(None)
     assert code == 0
     # Markers from generate_learn_prompt()'s template
     assert "Culture" in stdout
@@ -83,10 +88,11 @@ def test_culture_explain_cli_lists_namespaces():
         [sys.executable, "-m", "culture", "explain"],
         capture_output=True,
         text=True,
+        check=False,
     )
     assert result.returncode == 0, result.stderr
     assert "culture" in result.stdout.lower()
-    assert "agex" in result.stdout
+    assert "devex" in result.stdout
 
 
 def test_culture_overview_cli_runs():
@@ -94,6 +100,7 @@ def test_culture_overview_cli_runs():
         [sys.executable, "-m", "culture", "overview"],
         capture_output=True,
         text=True,
+        check=False,
     )
     assert result.returncode == 0, result.stderr
     assert result.stdout.strip()
@@ -104,6 +111,7 @@ def test_culture_learn_cli_runs():
         [sys.executable, "-m", "culture", "learn"],
         capture_output=True,
         text=True,
+        check=False,
     )
     assert result.returncode == 0, result.stderr
     assert "Culture" in result.stdout
@@ -114,6 +122,34 @@ def test_culture_explain_unknown_topic_exits_1():
         [sys.executable, "-m", "culture", "explain", "unknown-topic-xyz"],
         capture_output=True,
         text=True,
+        check=False,
     )
     assert result.returncode == 1
     assert "unknown-topic-xyz" in result.stderr
+
+
+def test_culture_explain_coming_soon_namespace_exits_0():
+    # `agent` is advertised in _NAMESPACES but has no registered handler;
+    # the dispatcher should surface a "coming soon" message and exit 0
+    # instead of treating it as an unknown topic.
+    result = subprocess.run(
+        [sys.executable, "-m", "culture", "explain", "agent"],
+        capture_output=True,
+        text=True,
+        check=False,
+    )
+    assert result.returncode == 0, result.stderr
+    assert "coming soon" in result.stdout.lower()
+    assert "agent" in result.stdout
+
+
+def test_resolve_unit_coming_soon_for_namespace_without_handler():
+    # Unit-level version of the above — exercises _resolve directly.
+    introspect._clear_registry()
+    try:
+        stdout, code = introspect.explain("afi")
+        assert code == 0
+        assert "coming soon" in stdout.lower()
+        assert "afi" in stdout
+    finally:
+        introspect._clear_registry()

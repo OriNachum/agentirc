@@ -7,7 +7,7 @@ Commands are organized into noun-based groups:
     culture channel  {list,read,message,who}
     culture bot      {create,start,stop,list,inspect,archive,unarchive}
     culture skills   {install}
-    culture agex     {...full passthrough to the standalone `agex` CLI...}
+    culture devex    {...developer-experience passthrough (powered by agex-cli)...}
 
 Universal verbs (available at the root):
     culture explain [topic]    full description of topic (default: culture)
@@ -22,9 +22,9 @@ import logging
 import sys
 
 from culture import __version__
-from culture.cli import agent, agex, bot, channel, introspect, mesh, server, skills
+from culture.cli import agent, bot, channel, devex, introspect, mesh, server, skills
 
-GROUPS = [agent, server, mesh, channel, bot, skills, agex, introspect]
+GROUPS = [agent, server, mesh, channel, bot, skills, devex, introspect]
 
 
 def _names_of(group) -> set[str]:
