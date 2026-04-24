@@ -16,7 +16,11 @@ from culture.aio import maybe_await
 from culture.constants import SYSTEM_USER_PREFIX
 from culture.protocol import replies
 from culture.protocol.message import Message
-from culture.telemetry.context import extract_traceparent_from_tags
+from culture.telemetry.context import TRACEPARENT_TAG as _TP_TAG_NAME
+from culture.telemetry.context import (
+    extract_traceparent_from_tags,
+)
+from culture.telemetry.context import inject_traceparent as _inject_traceparent
 
 
 def _context_from_traceparent(tp: str):
@@ -32,6 +36,20 @@ def _context_from_traceparent(tp: str):
         trace_flags=TraceFlags(int(flags_hex, 16)),
     )
     return set_span_in_context(NonRecordingSpan(span_ctx))
+
+
+def _current_traceparent() -> str | None:
+    """Return the W3C traceparent for the currently-active span, or None
+    if no span is recording (no-op tracer / sampler dropped).
+    """
+    span = _otel_trace.get_current_span()
+    ctx = span.get_span_context()
+    if not ctx.is_valid:
+        return None
+    return (
+        f"00-{format(ctx.trace_id, '032x')}-{format(ctx.span_id, '016x')}"
+        f"-{format(int(ctx.trace_flags), '02x')}"
+    )
 
 
 if TYPE_CHECKING:
@@ -66,6 +84,9 @@ class Client:
         return f"{self.nick}!{self.user}@{self.host}"
 
     async def send(self, message: Message) -> None:
+        tp = _current_traceparent()
+        if tp is not None:
+            _inject_traceparent(message, traceparent=tp, tracestate=None)
         try:
             self.writer.write(message.format().encode("utf-8"))
             await self.writer.drain()
@@ -76,7 +97,13 @@ class Client:
         """Write a pre-formatted IRC line to the client socket.
 
         Appends CRLF internally, matching ServerLink.send_raw convention.
+        Injects `culture.dev/traceparent` as an IRCv3 tag when a span is active.
         """
+        tp = _current_traceparent()
+        if tp is not None:
+            # send_raw takes a pre-formatted line without an existing tag
+            # block; prefix a fresh @tag.
+            line = f"@{_TP_TAG_NAME}={tp} {line}"
         try:
             self.writer.write(f"{line}\r\n".encode("utf-8"))
             await self.writer.drain()
