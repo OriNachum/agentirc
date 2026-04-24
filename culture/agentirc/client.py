@@ -699,46 +699,64 @@ class Client:
         await self.send_numeric(replies.RPL_UMODEIS, mode_str)
 
     async def _send_to_channel(self, channel, target, relay, text, is_notice):
-        for member in list(channel.members):
-            if member is not self:
-                await member.send(relay)
-        event_data = {"text": text}
-        if is_notice:
-            event_data["notice"] = True
-        await self.server.emit_event(
-            Event(
-                type=EventType.MESSAGE,
-                channel=target,
-                nick=self.nick,
-                data=event_data,
+        with _otel_trace.get_tracer("culture.agentirc").start_as_current_span(
+            "irc.privmsg.deliver.channel",
+            attributes={
+                "irc.channel": target,
+                "irc.message.body": text,
+                "irc.message.size": len(text),
+                "irc.notice": is_notice,
+            },
+        ):
+            for member in list(channel.members):
+                if member is not self:
+                    await member.send(relay)
+            event_data = {"text": text}
+            if is_notice:
+                event_data["notice"] = True
+            await self.server.emit_event(
+                Event(
+                    type=EventType.MESSAGE,
+                    channel=target,
+                    nick=self.nick,
+                    data=event_data,
+                )
             )
-        )
 
     async def _send_to_client(self, target, relay, text, is_notice):
         from culture.agentirc.remote_client import RemoteClient
 
-        recipient = self.server.get_client(target)
-        if not recipient:
-            return False
-        if isinstance(recipient, RemoteClient):
-            s2s_cmd = "SNOTICE" if is_notice else "SMSG"
-            await recipient.link.send_raw(
-                f":{self.server.config.name} {s2s_cmd} {target} {self.nick} :{text}"
+        with _otel_trace.get_tracer("culture.agentirc").start_as_current_span(
+            "irc.privmsg.deliver.dm",
+            attributes={
+                "irc.target.nick": target,
+                "irc.message.body": text,
+                "irc.message.size": len(text),
+                "irc.notice": is_notice,
+            },
+        ):
+            recipient = self.server.get_client(target)
+            if not recipient:
+                return False
+            if isinstance(recipient, RemoteClient):
+                s2s_cmd = "SNOTICE" if is_notice else "SMSG"
+                await recipient.link.send_raw(
+                    f":{self.server.config.name} {s2s_cmd} {target} {self.nick} :{text}"
+                )
+            else:
+                await recipient.send(relay)
+            event_data = {"text": text, "target": target}
+            if is_notice:
+                event_data["notice"] = True
+            await self.server.emit_event(
+                Event(
+                    type=EventType.MESSAGE,
+                    channel=None,
+                    nick=self.nick,
+                    data=event_data,
+                )
             )
-        else:
-            await recipient.send(relay)
-        event_data = {"text": text, "target": target}
-        if is_notice:
-            event_data["notice"] = True
-        await self.server.emit_event(
-            Event(
-                type=EventType.MESSAGE,
-                channel=None,
-                nick=self.nick,
-                data=event_data,
-            )
-        )
-        return True
+            return True
 
     async def _handle_privmsg(self, msg: Message) -> None:
         if len(msg.params) < 2:
@@ -749,28 +767,37 @@ class Client:
 
         target = msg.params[0]
         text = msg.params[1]
-        relay = Message(prefix=self.prefix, command="PRIVMSG", params=[target, text])
+        # Per-call get_tracer: test fixture swaps provider between tests.
+        with _otel_trace.get_tracer("culture.agentirc").start_as_current_span(
+            "irc.privmsg.dispatch",
+            attributes={
+                "irc.target": target,
+                "irc.message.body": text,
+                "irc.message.size": len(text),
+            },
+        ):
+            relay = Message(prefix=self.prefix, command="PRIVMSG", params=[target, text])
 
-        if target.startswith("#"):
-            channel = self.server.channels.get(target)
-            if not channel:
-                await self.send_numeric(
-                    replies.ERR_NOSUCHCHANNEL, target, replies.MSG_NOSUCHCHANNEL
-                )
-                return
-            if self not in channel.members:
-                await self.send_numeric(
-                    replies.ERR_CANNOTSENDTOCHAN, target, "Cannot send to channel"
-                )
-                return
-            await self._send_to_channel(channel, target, relay, text, False)
-            await self._notify_mentions(target, text)
-        else:
-            found = await self._send_to_client(target, relay, text, False)
-            if not found:
-                await self.send_numeric(replies.ERR_NOSUCHNICK, target, replies.MSG_NOSUCHNICK)
-                return
-            await self._notify_mentions(None, text)
+            if target.startswith("#"):
+                channel = self.server.channels.get(target)
+                if not channel:
+                    await self.send_numeric(
+                        replies.ERR_NOSUCHCHANNEL, target, replies.MSG_NOSUCHCHANNEL
+                    )
+                    return
+                if self not in channel.members:
+                    await self.send_numeric(
+                        replies.ERR_CANNOTSENDTOCHAN, target, "Cannot send to channel"
+                    )
+                    return
+                await self._send_to_channel(channel, target, relay, text, False)
+                await self._notify_mentions(target, text)
+            else:
+                found = await self._send_to_client(target, relay, text, False)
+                if not found:
+                    await self.send_numeric(replies.ERR_NOSUCHNICK, target, replies.MSG_NOSUCHNICK)
+                    return
+                await self._notify_mentions(None, text)
 
     async def _notify_mentions(self, channel_name: str | None, text: str) -> None:
         from culture.agentirc.remote_client import RemoteClient
