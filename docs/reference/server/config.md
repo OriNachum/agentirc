@@ -100,8 +100,8 @@ OpenTelemetry settings. Off by default; when enabled, Culture exports traces to 
 | `otlp_protocol` | `grpc` | OTLP transport. Only `grpc` is supported today. |
 | `otlp_timeout_ms` | `5000` | Exporter timeout per batch, in milliseconds. |
 | `otlp_compression` | `gzip` | `gzip` or `none`. |
-| `traces_enabled` | `true` | Sub-switch for the trace pillar. `enabled: true` + `traces_enabled: false` → SDK still loads but no trace export. |
-| `traces_sampler` | `parentbased_always_on` | Sampler string. Valid: `parentbased_always_on`, `parentbased_traceidratio:<0.0-1.0>`, `always_off`. |
+| `traces_enabled` | `true` | Sub-switch for the trace pillar. When `false`, no SDK provider is installed and no spans are created — equivalent to `enabled: false` for the trace pipeline. |
+| `traces_sampler` | `parentbased_always_on` | Sampler string, used only when tracing is enabled. Valid: `parentbased_always_on`, `parentbased_traceidratio:<0.0-1.0>`, `always_off`. |
 
 Example:
 

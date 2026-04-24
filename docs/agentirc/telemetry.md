@@ -66,7 +66,7 @@ When telemetry is enabled and a span is active, outbound client messages carry t
 - `culture.dev/traceparent` — W3C traceparent header value.
 - `culture.dev/tracestate` — W3C tracestate (optional).
 
-Protocol details, length caps, and inbound mitigation rules: see [`tracing`](../../culture/protocol/extensions/tracing.md).
+Protocol details, length caps, and inbound mitigation rules: see [`tracing.md`](https://github.com/agentculture/culture/blob/main/culture/protocol/extensions/tracing.md) (lives under `culture/` in the repo; Jekyll excludes that path from the published site).
 
 ## What's not in 8.2.0
 
