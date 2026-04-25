@@ -5,6 +5,7 @@ import asyncio
 import base64
 import json
 import logging
+import time
 from collections import deque
 from typing import TYPE_CHECKING
 
@@ -213,6 +214,12 @@ class IRCd:
     async def emit_event(self, event: Event) -> None:
         origin_tag = event.data.get("_origin")
         attrs = self._build_event_span_attrs(event, origin_tag)
+        event_type_str = attrs["event.type"]
+        origin_str = "federated" if origin_tag else "local"
+
+        self.metrics.events_emitted.add(1, {"event.type": event_type_str, "origin": origin_str})
+        render_started = time.perf_counter()
+
         # Per-call get_tracer: the `tracing_exporter` test fixture swaps the
         # global provider between tests; a cached Tracer would bind to the
         # first test's provider and stop delivering to later ones.
@@ -226,6 +233,9 @@ class IRCd:
                 await self._relay_to_peers(event)
             await self._dispatch_to_bots(event)
             await self._surface_event_privmsg(event)
+
+        render_ms = (time.perf_counter() - render_started) * 1000.0
+        self.metrics.events_render_duration.record(render_ms, {"event.type": event_type_str})
 
     _NO_SURFACE_TYPES = NO_SURFACE_EVENT_TYPES
 
