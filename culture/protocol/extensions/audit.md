@@ -59,6 +59,10 @@ Rotation fires when **either** condition is met, checked at the top of every rec
 The new file is opened with `O_WRONLY | O_APPEND | O_CREAT` mode `0600`. Writes use a single
 `os.write` per record so partial-line interleaving is impossible.
 
+A record larger than `audit_max_file_bytes` is still written — the cap is a soft
+ceiling for accumulated bytes, not a hard reject. The oversized record lands in
+its own freshly-rotated file, and the next record triggers another rotation.
+
 ## Durability
 
 Records flow through a bounded `asyncio.Queue` (depth `telemetry.audit_queue_depth`, default

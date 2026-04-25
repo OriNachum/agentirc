@@ -280,3 +280,26 @@ async def test_sink_overflow_drops_records(tmp_path):
     # racy because the writer may have drained 1 before we filled, so just
     # assert "less than 10".
     assert len(written) < 10, f"expected drops, all 10 written: {written}"
+
+
+@pytest.mark.asyncio
+async def test_sink_writes_oversized_record_into_fresh_file(tmp_path):
+    """A single record larger than audit_max_file_bytes is still written —
+    the cap is a soft ceiling for accumulated bytes, not a hard reject."""
+    cfg = _build_config(tmp_path, audit_max_file_bytes=100)
+    metrics = init_metrics(cfg)
+    sink = init_audit(cfg, metrics)
+    await sink.start()
+    try:
+        big = {"event_type": "test", "padding": "x" * 500}  # ~530 bytes
+        sink.submit(big)
+        sink.submit({"event_type": "test", "n": 2})
+        await asyncio.wait_for(sink.queue.join(), timeout=2.0)
+    finally:
+        await sink.shutdown()
+    files = sorted(tmp_path.glob("testserv-*.jsonl*"))
+    # Oversized record forces rotation; second record forces another.
+    assert len(files) >= 2
+    # The oversized record must be in one of the files.
+    all_lines = "\n".join(f.read_text() for f in files)
+    assert "x" * 500 in all_lines

@@ -21,7 +21,6 @@ import asyncio
 import json
 import logging
 import os
-import sys
 from dataclasses import asdict, dataclass, field
 from datetime import datetime, timezone
 from pathlib import Path
@@ -74,17 +73,20 @@ class AuditSink:
 
     def submit(self, record: dict) -> None:
         """Non-blocking enqueue. Drop on overflow or when disabled."""
-        if not self.enabled or self.queue is None:
+        if not self.enabled:
+            return
+        if self.queue is None:
+            # start() not yet called — record cannot be enqueued. Count and
+            # log so this state is observable rather than a silent vanish.
+            self.metrics.audit_writes.add(1, {"outcome": "error"})
+            logger.warning("audit submit called before start(); dropped 1 record")
             return
         try:
             self.queue.put_nowait(record)
             self.metrics.audit_queue_depth.add(1)
         except asyncio.QueueFull:
             self.metrics.audit_writes.add(1, {"outcome": "error"})
-            print(
-                f"audit queue full (depth={self.queue_depth}); dropped 1 record",
-                file=sys.stderr,
-            )
+            logger.warning("audit queue full (depth=%d); dropped 1 record", self.queue_depth)
 
     async def start(self) -> None:
         """Create the audit directory if missing, then spawn the writer task.
@@ -128,7 +130,12 @@ class AuditSink:
 
     async def _writer_loop(self) -> None:
         """Drain the queue forever, JSON-encoding and appending each record."""
-        assert self.queue is not None
+        if self.queue is None:
+            # Should never happen — start() always assigns the queue before
+            # spawning this task — but guard against `python -O` stripping
+            # the assert, which would mask a real bug.
+            logger.error("audit writer task started without a queue; exiting")
+            return
         while True:
             record = await self.queue.get()
             try:
@@ -173,13 +180,6 @@ class AuditSink:
         elif size_exceeded:
             self._current_suffix += 1  # same day, next slot
 
-        if self._current_fd != -1:
-            try:
-                os.close(self._current_fd)
-            except OSError:
-                pass
-            self._current_fd = -1
-
         self._current_date = today
         suffix_part = f".{self._current_suffix}" if self._current_suffix else ""
         path = self.audit_dir / f"{self.server_name}-{today}{suffix_part}.jsonl"
@@ -203,19 +203,30 @@ class AuditSink:
             except OSError:
                 existing_size = 0
 
+        old_fd = self._current_fd
         try:
-            self._current_fd = os.open(
+            new_fd = os.open(
                 str(path),
                 os.O_WRONLY | os.O_APPEND | os.O_CREAT,
                 0o600,
             )
-            self._current_path = path
-            self._current_size = existing_size
         except OSError as exc:
-            logger.warning("audit open failed for %s: %s", path, exc)
-            self._current_fd = -1
-            self._current_path = None
-            self._current_size = 0
+            # New open failed — keep the old fd usable so the next record may
+            # still write to the previous file. If old_fd was -1 we degrade to
+            # silent-drop (counter increments via writer-loop OSError branch on
+            # next write attempt — which will retry rotation).
+            logger.error("audit open failed for %s: %s — keeping previous fd open", path, exc)
+            return
+
+        # New fd opened successfully — now close the old one if there was one.
+        if old_fd != -1:
+            try:
+                os.close(old_fd)
+            except OSError:
+                pass
+        self._current_fd = new_fd
+        self._current_path = path
+        self._current_size = existing_size
 
 
 def _utc_iso_timestamp(epoch_seconds: float) -> str:
@@ -288,6 +299,17 @@ def init_audit(config: ServerConfig, metrics: "MetricsRegistry") -> AuditSink:
     if _initialized_for == snapshot and _sink is not None:
         return _sink
 
+    # Reinit: warn the caller that the previous sink is being replaced
+    # without an explicit shutdown. Production callers should call
+    # `await sink.shutdown()` themselves before reinit; this branch
+    # primarily protects test isolation.
+    if _sink is not None and _sink._writer_task is not None:
+        logger.warning(
+            "init_audit called with mutated config but previous sink is still "
+            "running; the old writer task will be orphaned. Caller should "
+            "await sink.shutdown() before reinit."
+        )
+
     audit_dir = Path(tcfg.audit_dir).expanduser()
 
     sink = AuditSink(
@@ -309,5 +331,10 @@ def reset_for_tests() -> None:
     """Test-only: clear module state. Caller is responsible for shutting
     down any active sink before calling this."""
     global _initialized_for, _sink
+    if _sink is not None and _sink._writer_task is not None:
+        logger.warning(
+            "reset_for_tests called while sink writer task still running; "
+            "test should `await sink.shutdown()` before reset_for_tests."
+        )
     _initialized_for = None
     _sink = None
