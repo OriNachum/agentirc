@@ -15,8 +15,9 @@ from claude_agent_sdk import (
     ToolUseBlock,
     query,
 )
+from opentelemetry import trace as _otel_trace
 
-from culture.clients.claude.telemetry import record_llm_call
+from culture.clients.claude.telemetry import _HARNESS_TRACER_NAME, record_llm_call
 
 if TYPE_CHECKING:
     from culture.clients.claude.telemetry import HarnessMetricsRegistry
@@ -155,9 +156,7 @@ class AgentRunner:
 
     async def _process_turn(self, prompt: str) -> bool:
         """Run a single conversation turn. Returns False if a fatal error occurred."""
-        from opentelemetry import trace as _otel_trace
-
-        tracer = _otel_trace.get_tracer("culture.harness.claude")
+        tracer = _otel_trace.get_tracer(_HARNESS_TRACER_NAME)
         start_perf = time.perf_counter()
         outcome = "success"
         usage_dict: dict | None = None

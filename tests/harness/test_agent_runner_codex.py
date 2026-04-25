@@ -7,6 +7,7 @@ binary installed.
 
 from __future__ import annotations
 
+import asyncio
 from unittest.mock import AsyncMock, patch
 
 import pytest
@@ -163,9 +164,6 @@ async def test_execute_single_turn_records_timeout(metrics_reader, registry):
         # Return without setting _turn_done — this will cause the 300s timeout.
         # We patch asyncio.timeout to make it expire immediately.
         return {"result": {}}
-
-    import asyncio
-    from unittest.mock import MagicMock
 
     # Create a context manager that raises TimeoutError immediately
     class _ImmediateTimeout:
