@@ -9,7 +9,7 @@ nav_order: 90
 
 Culture ships with first-class OpenTelemetry support: traces for every IRC command and event, W3C trace context carried across federation via a new IRCv3 tag, and a local collector pattern that keeps Culture's surface small.
 
-This page covers the **Foundation + Server Tracing** release (culture 8.2.0) plus **Federation Trace-Context Relay** (culture 8.3.0). Metrics, audit, harness instrumentation, and bot instrumentation ship in subsequent releases.
+This page covers the **Foundation + Server Tracing** release (culture 8.2.0), **Federation Trace-Context Relay** (culture 8.3.0), and the **Metrics Pillar** (culture 8.4.0). Audit, harness instrumentation, and bot instrumentation ship in subsequent releases.
 
 ## What you get in 8.2.0
 
@@ -49,6 +49,41 @@ New public helpers in `culture.telemetry`:
 
 These power the federation re-sign loop and are also useful for embedding Culture's tracer into other Python code that needs to bridge IRC trace context to non-IRC transports.
 
+## What you get in 8.4.0
+
+The metrics pillar lands: 15 server-side instruments registered once via `init_metrics(config)` (called from `IRCd.__init__` next to `init_telemetry`). When `telemetry.enabled: true` and `metrics_enabled: true`, the SDK exports every `metrics_export_interval_ms` (default 10s) to your collector via OTLP/gRPC. Five categories:
+
+**Message flow:**
+
+- `culture.irc.bytes_sent` — Counter, `By`. Labels: `direction=c2s|s2c|s2s`.
+- `culture.irc.bytes_received` — Counter, `By`. Labels: `direction`.
+- `culture.irc.message.size` — Histogram, `By`. Labels: `verb`, `direction`.
+- `culture.privmsg.delivered` — Counter. Labels: `kind=channel|dm` (channel-only carries `channel=<name>`).
+
+**Events:**
+
+- `culture.events.emitted` — Counter. Labels: `event.type`, `origin=local|federated`.
+- `culture.events.render.duration` — Histogram, `ms`. Labels: `event.type`. Measures total time inside `IRCd.emit_event` (skill hooks + bot dispatch + surfacing).
+
+**Federation:**
+
+- `culture.s2s.messages` — Counter (inbound only in 8.4.0). Labels: `verb`, `direction=inbound`, `peer`.
+- `culture.s2s.relay_latency` — Histogram, `ms`. Labels: `event.type`, `peer`.
+- `culture.s2s.links_active` — UpDownCounter. Labels: `peer`, `direction=inbound|outbound`.
+- `culture.s2s.link_events` — Counter. Labels: `peer`, `event=connect|disconnect|auth_fail|backfill_start|backfill_complete`.
+
+**Clients & sessions:**
+
+- `culture.clients.connected` — UpDownCounter. Labels: `kind=human` (Plan 5/6 will refine to `bot`/`harness`).
+- `culture.client.session.duration` — Histogram, `s`. Labels: `kind`.
+- `culture.client.command.duration` — Histogram, `ms`. Labels: `verb` (uppercase).
+
+**Trace-context hygiene:**
+
+- `culture.trace.inbound` — Counter. Labels: `result=valid|missing|malformed|too_long`, `peer` (empty for client-side dispatch). Closes Plan 2's deferred metric.
+
+When telemetry or metrics are disabled, the SDK is not installed and instruments are bound to OTEL's proxy meter — call sites can `instrument.add(...)` / `.record(...)` unconditionally without guards.
+
 ## Configuration
 
 Telemetry is **off by default**. Enable it in `~/.culture/server.yaml`:
@@ -63,6 +98,8 @@ telemetry:
   otlp_compression: gzip
   traces_enabled: true
   traces_sampler: parentbased_always_on
+  metrics_enabled: true
+  metrics_export_interval_ms: 10000
 ```
 
 - `enabled: false` (default) → no SDK init, no export, no overhead. Traceparent tags on inbound messages are still parsed and validated (for the future mitigation metric), but no spans are created.
@@ -89,13 +126,13 @@ When telemetry is enabled and a span is active, outbound client messages carry t
 
 Protocol details, length caps, and inbound mitigation rules: see [`tracing.md`](https://github.com/agentculture/culture/blob/main/culture/protocol/extensions/tracing.md) (lives under `culture/` in the repo; Jekyll excludes that path from the published site).
 
-## What's not in 8.3.0
+## What's not in 8.4.0
 
 The design spec at `docs/superpowers/specs/2026-04-24-otel-observability-design.md` covers the full three-pillar scope. These pieces ship in later releases:
 
-- Metrics pillar (message counters, histograms, federation health, including `culture.trace.inbound{result, peer}` for the inbound mitigation states already attribute-tagged on `irc.s2s.<VERB>` spans).
-- Audit JSONL sink.
-- Harness-side tracing for `claude`/`codex`/`copilot`/`acp`.
-- Bot webhook HTTP instrumentation.
+- Audit JSONL sink + audit metrics (`culture.audit.writes`, `culture.audit.queue_depth`).
+- Harness-side tracing for `claude`/`codex`/`copilot`/`acp` + harness LLM metrics (`culture.harness.llm.*`).
+- Bot webhook HTTP instrumentation + bot metrics (`culture.bot.invocations`, `culture.bot.webhook.duration`).
+- Outbound `culture.s2s.messages` (8.4.0 records inbound only — outbound needs a clean verb-extraction site without parsing every `send_raw` line).
 
 Each will get an entry under "What you get in \<version\>" as it lands.
