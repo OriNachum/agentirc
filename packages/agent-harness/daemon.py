@@ -27,6 +27,7 @@ from culture.clients.BACKEND.ipc import make_response
 from culture.clients.BACKEND.irc_transport import IRCTransport
 from culture.clients.BACKEND.message_buffer import MessageBuffer
 from culture.clients.BACKEND.socket_server import SocketServer
+from culture.clients.BACKEND.telemetry import init_harness_telemetry
 from culture.clients.BACKEND.webhook import AlertEvent, WebhookClient
 
 MAX_CONSECUTIVE_TURN_FAILURES = 3
@@ -73,6 +74,8 @@ class AgentDaemon:
         self._buffer: MessageBuffer | None = None
         self._socket_server: SocketServer | None = None
         self._webhook: WebhookClient | None = None
+        self._tracer = None
+        self._metrics = None
         self._agent_runner: Any = None
         self._stop_event: asyncio.Event | None = None
 
@@ -128,6 +131,9 @@ class AgentDaemon:
 
     async def start(self) -> None:
         """Start all daemon components."""
+        # 0. OTEL telemetry (if telemetry.enabled, installs SDK providers; else no-op).
+        self._tracer, self._metrics = init_harness_telemetry(self.config)
+
         # 1. Message buffer
         self._buffer = MessageBuffer(max_per_channel=self.config.buffer_size)
 
@@ -140,6 +146,9 @@ class AgentDaemon:
             channels=list(self.agent.channels),
             buffer=self._buffer,
             on_mention=self._on_mention,
+            tracer=self._tracer,
+            metrics=self._metrics,
+            backend="BACKEND",  # Tasks 4–7 will replace this with claude/codex/copilot/acp
         )
         await self._transport.connect()
 
@@ -191,7 +200,10 @@ class AgentDaemon:
         """Start the agent. REPLACE with your backend's agent startup."""
         raise NotImplementedError(
             "Replace _start_agent_runner() with your agent backend's startup logic. "
-            "See culture/clients/claude/daemon.py for the Claude implementation."
+            "See culture/clients/claude/daemon.py for the Claude implementation. "
+            "The agent runner constructor must accept the harness metrics registry as a "
+            "kwarg (e.g. metrics=self._metrics) so it can call "
+            "telemetry.record_llm_call(...) per LLM turn."
         )
 
     def _build_system_prompt(self) -> str:
