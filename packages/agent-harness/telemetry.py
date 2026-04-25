@@ -5,27 +5,16 @@ Why this file lives in ``packages/agent-harness/``
 The culture codebase uses a **cite, don't import** pattern for the per-backend
 agent harnesses in ``culture/clients/{claude,codex,copilot,acp}/``. Each backend
 owns a verbatim copy of this file (with the ``service_name`` default changed to
-``culture.harness.<backend>``). Backend-specific overrides are isolated to that
-one line; all other logic must stay identical so the all-backends parity test
+``culture.harness.<backend>``). Backend-specific overrides are isolated to those
+two sites; all other logic must stay identical so the all-backends parity test
 (``tests/harness/test_all_backends_parity.py``) passes.
 
-Why ``culture.telemetry.context`` is imported directly
--------------------------------------------------------
-The harness process installs the same ``culture`` Python package as the server.
-The W3C traceparent helpers (``extract_traceparent_from_tags``,
-``inject_traceparent``, ``current_traceparent``, ``context_from_traceparent``,
-``TRACEPARENT_TAG``, ``TRACESTATE_TAG``) are reusable as-is from
-``culture.telemetry`` — duplicating them here would create divergence risk. Both
-the server-side ``IRCd`` and the harness-side ``IRCTransport`` share the same
-wire grammar, so sharing the helpers is correct.
-
-Backend-specific ``service_name`` overrides
--------------------------------------------
-When a backend cites this file into ``culture/clients/<backend>/``, the only
-required edit is replacing the ``service_name: str = "culture.harness"`` default
-in ``TelemetryConfig`` (or more accurately, in the harness-specific
-``config.py``) with ``"culture.harness.<backend>"``. The tracer name passed to
-``get_tracer`` also becomes ``"culture.harness.<backend>"`` to match.
+Backend-specific edit sites (two, both must be updated on citation)
+--------------------------------------------------------------------
+1. ``TelemetryConfig.service_name`` in ``config.py`` — change the default from
+   ``"culture.harness"`` to ``"culture.harness.<backend>"``.
+2. ``_HARNESS_TRACER_NAME`` constant in this file — change the value from
+   ``"culture.harness"`` to ``"culture.harness.<backend>"`` to match.
 """
 
 from __future__ import annotations
@@ -36,7 +25,7 @@ from dataclasses import asdict, dataclass
 from opentelemetry import metrics, trace
 from opentelemetry.exporter.otlp.proto.grpc.metric_exporter import OTLPMetricExporter
 from opentelemetry.exporter.otlp.proto.grpc.trace_exporter import OTLPSpanExporter
-from opentelemetry.metrics import Counter, Histogram
+from opentelemetry.metrics import Counter, Histogram, Meter
 from opentelemetry.sdk.metrics import MeterProvider
 from opentelemetry.sdk.metrics.export import PeriodicExportingMetricReader
 from opentelemetry.sdk.resources import Resource
@@ -53,7 +42,7 @@ from opentelemetry.trace import Tracer
 
 logger = logging.getLogger(__name__)
 
-# Module-level tracer name — citied backends replace "culture.harness" with
+# Module-level tracer name — cited backends replace "culture.harness" with
 # "culture.harness.<backend>" to match their service.name.
 _HARNESS_TRACER_NAME = "culture.harness"
 
@@ -139,7 +128,7 @@ def _build_sampler(name: str) -> Sampler:
     return ParentBased(ALWAYS_ON)
 
 
-def _build_registry(meter) -> HarnessMetricsRegistry:
+def _build_registry(meter: Meter) -> HarnessMetricsRegistry:
     """Register all four harness LLM instruments against ``meter``."""
     return HarnessMetricsRegistry(
         llm_tokens_input=meter.create_counter(
@@ -207,7 +196,6 @@ def init_harness_telemetry(config) -> tuple[Tracer, HarnessMetricsRegistry]:
     if not traces_on:
         # No SDK provider → proxy no-op tracer.
         _tracer = trace.get_tracer(_HARNESS_TRACER_NAME)
-    # else: will be set after provider install below.
 
     if not metrics_on:
         # Proxy meter — instruments work as stubs; no export thread.

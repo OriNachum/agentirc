@@ -7,6 +7,8 @@ parallel xdist workers don't leak providers.
 
 from __future__ import annotations
 
+from unittest.mock import patch
+
 import pytest
 
 # Imported via sys.path set in conftest.py
@@ -139,6 +141,63 @@ def test_init_reinit_on_config_change():
 
     tracer2, registry2 = init_harness_telemetry(config)
     assert registry1 is not registry2
+
+
+# ---------------------------------------------------------------------------
+# test_init_reinit_with_real_provider_shuts_down_old
+# ---------------------------------------------------------------------------
+
+
+def test_init_reinit_with_real_provider_shuts_down_old():
+    """Reinit with changed config shuts down the previous real MeterProvider.
+
+    First call installs a real SdkMeterProvider (enabled=True, metrics_on).
+    A config mutation then triggers reinit, which must call shutdown() on the
+    old provider.  We patch MeterProvider.shutdown to record invocations so
+    the assertion is deterministic without touching live exporters.
+    """
+    reader = InMemoryMetricReader()
+    first_provider = SdkMeterProvider(
+        resource=Resource.create({"service.name": "test-harness-reinit"}),
+        metric_readers=[reader],
+    )
+    otel_metrics.set_meter_provider(first_provider)
+
+    import telemetry as _tel_module
+
+    _tel_module._meter_provider = first_provider
+
+    shutdown_calls = []
+    original_shutdown = SdkMeterProvider.shutdown
+
+    def _record_shutdown(self, *args, **kwargs):
+        shutdown_calls.append(self)
+        return original_shutdown(self, *args, **kwargs)
+
+    tcfg = TelemetryConfig(enabled=False)
+    config = DaemonConfig(telemetry=tcfg)
+    _tel_module._initialized_for = {
+        "telemetry": {
+            "enabled": False,
+            "service_name": "culture.harness",
+            "otlp_endpoint": "http://localhost:4317",
+            "otlp_protocol": "grpc",
+            "otlp_timeout_ms": 5000,
+            "otlp_compression": "gzip",
+            "traces_enabled": True,
+            "traces_sampler": "parentbased_always_on",
+            "metrics_enabled": True,
+            "metrics_export_interval_ms": 10000,
+        },
+        "nick": "culture",
+    }
+
+    with patch.object(SdkMeterProvider, "shutdown", _record_shutdown):
+        tcfg.metrics_export_interval_ms = 5000
+        init_harness_telemetry(config)
+
+    assert shutdown_calls, "expected old MeterProvider.shutdown() to be called on reinit"
+    assert shutdown_calls[0] is first_provider
 
 
 # ---------------------------------------------------------------------------

@@ -72,7 +72,7 @@ class TelemetryConfig:
     enabled: bool = False
     service_name: str = "culture.harness"
     otlp_endpoint: str = "http://localhost:4317"
-    otlp_protocol: str = "grpc"
+    otlp_protocol: str = "grpc"  # grpc | http/protobuf (only grpc supported initially)
     otlp_timeout_ms: int = 5000
     otlp_compression: str = "gzip"
     traces_enabled: bool = True
