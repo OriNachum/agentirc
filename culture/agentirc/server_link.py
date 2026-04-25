@@ -5,6 +5,7 @@ import asyncio
 import base64
 import json
 import logging
+import time
 from typing import TYPE_CHECKING
 
 from opentelemetry import trace as otel_trace
@@ -137,8 +138,11 @@ class ServerLink:
             except Exception:  # noqa: BLE001 - telemetry must never break the link
                 logger.debug("traceparent injection failed; sending untagged", exc_info=True)
         try:
-            self.writer.write(f"{line}\r\n".encode("utf-8"))
+            wire = f"{line}\r\n".encode("utf-8")
+            self.writer.write(wire)
             await self.writer.drain()
+            if self.server is not None:
+                self.server.metrics.irc_bytes_sent.add(len(wire), {"direction": "s2s"})
         except OSError:
             pass
 
@@ -155,6 +159,13 @@ class ServerLink:
             line, buffer = buffer.split("\n", 1)
             if line.strip():
                 msg = Message.parse(line)
+                if self.server is not None:
+                    # +2 accounts for the \r\n that was stripped during line-split.
+                    line_bytes = len(line.encode("utf-8")) + 2
+                    self.server.metrics.irc_bytes_received.add(line_bytes, {"direction": "s2s"})
+                    self.server.metrics.irc_message_size.record(
+                        line_bytes, {"verb": msg.command, "direction": "s2s"}
+                    )
                 if msg.command:
                     await self._dispatch(msg)
         return buffer
@@ -187,6 +198,14 @@ class ServerLink:
             except (ConnectionError, asyncio.IncompleteReadError):
                 pass
             finally:
+                if self._authenticated:
+                    direction = "outbound" if self.initiator else "inbound"
+                    self.server.metrics.s2s_links_active.add(
+                        -1, {"peer": self.peer_name or "", "direction": direction}
+                    )
+                    self.server.metrics.s2s_link_events.add(
+                        1, {"peer": self.peer_name or "", "event": "disconnect"}
+                    )
                 await self.server._remove_link(self, squit=self._squit_received)
                 self.writer.close()
                 try:
@@ -203,10 +222,19 @@ class ServerLink:
         handler = getattr(self, f"_handle_{msg.command.lower()}", None)
 
         extracted = extract_traceparent_from_tags(msg, peer=self.peer_name)
+        self.server.metrics.trace_inbound.add(
+            1, {"result": extracted.status, "peer": self.peer_name or ""}
+        )
         if extracted.status == "valid":
             parent_ctx: _OtelContext | None = context_from_traceparent(extracted.traceparent)
         else:
             parent_ctx = _OtelContext()  # force root: detach from session span
+
+        if self.server is not None:
+            self.server.metrics.s2s_messages.add(
+                1,
+                {"verb": verb, "direction": "inbound", "peer": self.peer_name or ""},
+            )
 
         attrs = {
             "irc.command": verb,
@@ -266,17 +294,26 @@ class ServerLink:
         """
         if self._peer_pass != self.password:
             logger.warning("Bad password from peer %s", self.peer_name)
+            self.server.metrics.s2s_link_events.add(
+                1, {"peer": self.peer_name or "", "event": "auth_fail"}
+            )
             await self.send_raw("ERROR :Bad password")
             raise ConnectionError("Bad S2S password")
 
         # Check for duplicate server name
         if self.peer_name in self.server.links:
             logger.warning("Duplicate server name %s", self.peer_name)
+            self.server.metrics.s2s_link_events.add(
+                1, {"peer": self.peer_name or "", "event": "auth_fail"}
+            )
             await self.send_raw(f"ERROR :Server name {self.peer_name} already linked")
             raise ConnectionError("Duplicate server name")
 
         if self.peer_name == self.server.config.name:
             logger.warning("Peer has same name as us: %s", self.peer_name)
+            self.server.metrics.s2s_link_events.add(
+                1, {"peer": self.peer_name or "", "event": "auth_fail"}
+            )
             await self.send_raw("ERROR :Cannot link to self")
             raise ConnectionError("Cannot link to self")
 
@@ -291,6 +328,11 @@ class ServerLink:
         await self._validate_peer_credentials()
 
         self._authenticated = True
+        direction = "outbound" if self.initiator else "inbound"
+        self.server.metrics.s2s_links_active.add(
+            1, {"peer": self.peer_name, "direction": direction}
+        )
+        self.server.metrics.s2s_link_events.add(1, {"peer": self.peer_name, "event": "connect"})
         if self._session_span is not None:
             self._session_span.set_attribute("s2s.peer", self.peer_name)
         self.server.links[self.peer_name] = self
@@ -900,6 +942,10 @@ class ServerLink:
         except ValueError:
             return
 
+        self.server.metrics.s2s_link_events.add(
+            1, {"peer": self.peer_name or "", "event": "backfill_start"}
+        )
+
         # Use the higher of: what peer claims, or what we know they acked
         # (during real-time relay, peer saw everything up to our _seq at link drop)
         acked = self.server._peer_acked_seq.get(self.peer_name, 0)
@@ -910,6 +956,9 @@ class ServerLink:
                 await self._replay_event(seq, event)
 
         await self.send_raw(f":{self.server.config.name} BACKFILLEND {self.server._seq}")
+        self.server.metrics.s2s_link_events.add(
+            1, {"peer": self.peer_name or "", "event": "backfill_complete"}
+        )
 
     def _handle_backfillend(self, msg: Message) -> None:
         """Peer finished backfilling."""
@@ -946,6 +995,8 @@ class ServerLink:
             "event.type": event_type_str,
             "s2s.peer": self.peer_name or "",
         }
+        relay_started = time.perf_counter()
+        relayed = False
         # Single span name (no verb suffix): the wire verb is decided downstream
         # by _RELAY_DISPATCH or the SEVENT fallback, after this span opens.
         with otel_trace.get_tracer(_TRACER_NAME).start_as_current_span(
@@ -955,19 +1006,29 @@ class ServerLink:
             handler = self._RELAY_DISPATCH.get(event.type)
             if handler:
                 await maybe_await(handler(self, event, origin))
-                return
+                # v1: typed _relay_* handlers may early-return on internal trust checks
+                # without signaling. We optimistically count typed dispatch as relayed.
+                # Future: refactor _relay_* to return bool so latency only fires on
+                # genuine sends.
+                relayed = True
+            else:
+                # If no typed relay exists, fall back to generic SEVENT.
+                # v1 assumes all peers support SEVENT; cap negotiation is deferred — see plan task 12.
+                payload = self.server._build_event_payload(event)
+                encoded = self.server._encode_event_data(payload, event_type_str)
+                target = event.channel or "*"
+                # Egress trust check: channel-scoped events respect should_relay; global events always relay
+                if event.channel is None or self.should_relay(event.channel):
+                    seq = self.server._seq  # current local seq; peer stores but doesn't re-sequence
+                    await self.send_raw(
+                        f":{origin} SEVENT {origin} {seq} {event_type_str} {target} :{encoded}"
+                    )
+                    relayed = True
 
-            # If no typed relay exists, fall back to generic SEVENT.
-            # v1 assumes all peers support SEVENT; cap negotiation is deferred — see plan task 12.
-            payload = self.server._build_event_payload(event)
-            encoded = self.server._encode_event_data(payload, event_type_str)
-            target = event.channel or "*"
-            # Egress trust check: channel-scoped events respect should_relay; global events always relay
-            if event.channel is not None and not self.should_relay(event.channel):
-                return
-            seq = self.server._seq  # current local seq; peer stores but doesn't re-sequence
-            await self.send_raw(
-                f":{origin} SEVENT {origin} {seq} {event_type_str} {target} :{encoded}"
+        if relayed:
+            self.server.metrics.s2s_relay_latency.record(
+                (time.perf_counter() - relay_started) * 1000.0,
+                {"event.type": event_type_str, "peer": self.peer_name or ""},
             )
 
     async def _relay_message(self, event: Event, origin: str) -> None:

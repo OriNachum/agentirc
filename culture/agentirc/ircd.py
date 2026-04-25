@@ -5,6 +5,7 @@ import asyncio
 import base64
 import json
 import logging
+import time
 from collections import deque
 from typing import TYPE_CHECKING
 
@@ -25,6 +26,9 @@ from culture.protocol.message import Message
 
 logger = logging.getLogger(__name__)
 
+# Span/metric attribute keys defined once so a future rename has one edit point.
+_ATTR_EVENT_TYPE = "event.type"
+
 if TYPE_CHECKING:
     from culture.agentirc.client import Client
     from culture.agentirc.remote_client import RemoteClient
@@ -35,10 +39,11 @@ class IRCd:
     """The culture IRC server."""
 
     def __init__(self, config: ServerConfig):
-        from culture.telemetry import init_telemetry
+        from culture.telemetry import init_metrics, init_telemetry
 
         self.config = config
         self.tracer = init_telemetry(config)
+        self.metrics = init_metrics(config)
         self.clients: dict[str, Client | VirtualClient] = {}  # nick -> Client
         self.channels: dict[str, Channel] = {}  # name -> Channel
         self.skills: list[Skill] = []
@@ -178,7 +183,7 @@ class IRCd:
         # server_link.py).
         event_type_str = event.type.value if hasattr(event.type, "value") else str(event.type)
         attrs: dict[str, str] = {
-            "event.type": event_type_str,
+            _ATTR_EVENT_TYPE: event_type_str,
             "event.origin": "federated" if origin_tag else "local",
         }
         if event.channel:
@@ -212,6 +217,12 @@ class IRCd:
     async def emit_event(self, event: Event) -> None:
         origin_tag = event.data.get("_origin")
         attrs = self._build_event_span_attrs(event, origin_tag)
+        event_type_str = attrs[_ATTR_EVENT_TYPE]
+        origin_str = "federated" if origin_tag else "local"
+
+        self.metrics.events_emitted.add(1, {_ATTR_EVENT_TYPE: event_type_str, "origin": origin_str})
+        render_started = time.perf_counter()
+
         # Per-call get_tracer: the `tracing_exporter` test fixture swaps the
         # global provider between tests; a cached Tracer would bind to the
         # first test's provider and stop delivering to later ones.
@@ -225,6 +236,9 @@ class IRCd:
                 await self._relay_to_peers(event)
             await self._dispatch_to_bots(event)
             await self._surface_event_privmsg(event)
+
+        render_ms = (time.perf_counter() - render_started) * 1000.0
+        self.metrics.events_render_duration.record(render_ms, {_ATTR_EVENT_TYPE: event_type_str})
 
     _NO_SURFACE_TYPES = NO_SURFACE_EVENT_TYPES
 

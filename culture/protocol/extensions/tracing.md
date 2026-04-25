@@ -11,7 +11,7 @@
 
 1. Tag absent → start a new root span. Attribute: `culture.trace.origin=local`.
 2. Tag present and valid → start a child span linked to the extracted context. Attributes: `culture.trace.origin=remote`, `culture.federation.peer=<peer>`.
-3. Tag present but malformed or over the length cap → drop the tag, start a new root span. Attributes: `culture.trace.origin=remote`, `culture.trace.dropped_reason=malformed|too_long`, `culture.federation.peer=<peer>`. Log a rate-limited warning. Increment `culture.trace.inbound{result=malformed|too_long, peer=<peer>}`.
+3. Tag present but malformed or over the length cap → drop the tag, start a new root span. Attributes: `culture.trace.origin=remote`, `culture.trace.dropped_reason=malformed|too_long`, `culture.federation.peer=<peer>`. Log a rate-limited warning. Increment `culture.trace.inbound{result=malformed|too_long, peer=<peer>}` (shipped in culture 8.4.0; on every inbound regardless of result, so `result=valid` and `result=missing` are also recorded).
 
 **Length caps** (hard-coded, not configurable):
 
