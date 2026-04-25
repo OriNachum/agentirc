@@ -322,6 +322,47 @@ async def test_inbound_malformed_traceparent_dropped(harness_tracing_exporter, _
 
 
 # ---------------------------------------------------------------------------
+# test_inbound_too_long_traceparent_dropped
+# ---------------------------------------------------------------------------
+
+
+@pytest.mark.asyncio
+async def test_inbound_too_long_traceparent_dropped(harness_tracing_exporter, _reset_state):
+    exporter, provider = harness_tracing_exporter
+    tracer = provider.get_tracer("test")
+    transport = _make_transport(tracer=tracer)
+    reader, _writer = _inject_rw(transport)
+
+    # A traceparent longer than 55 chars triggers the too_long path.
+    too_long_tp = VALID_TRACEPARENT + "extra-garbage-that-makes-it-too-long"
+    inbound = f"@culture.dev/traceparent={too_long_tp} :alice!a@h PRIVMSG #room :hi\r\n"
+    reader.feed(inbound.encode())
+    reader.feed_eof()
+
+    read_task = asyncio.create_task(transport._read_loop())
+    try:
+        await asyncio.wait_for(read_task, timeout=1.0)
+    except (asyncio.TimeoutError, asyncio.CancelledError):
+        read_task.cancel()
+        await asyncio.gather(read_task, return_exceptions=True)
+
+    spans = exporter.get_finished_spans()
+    handle_spans = [s for s in spans if s.name == "harness.irc.message.handle"]
+    assert (
+        handle_spans
+    ), f"No harness.irc.message.handle span found; spans: {[s.name for s in spans]}"
+
+    span = handle_spans[0]
+    attrs = dict(span.attributes)
+    assert (
+        attrs.get("culture.trace.origin") == "remote"
+    ), f"Expected origin=remote for too_long traceparent; got attrs={attrs}"
+    assert (
+        attrs.get("culture.trace.dropped_reason") == "too_long"
+    ), f"Expected dropped_reason=too_long; got attrs={attrs}"
+
+
+# ---------------------------------------------------------------------------
 # test_no_tracer_means_no_spans
 # ---------------------------------------------------------------------------
 

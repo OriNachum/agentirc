@@ -93,7 +93,7 @@ Add a `telemetry:` block at the top level (alongside `suffix:`, `backend:`, etc.
 Three new spans + the inject/extract pair:
 
 - `_do_connect` (l. 66) — wrap in `harness.irc.connect` span. Attrs: `harness.backend` (from caller), `harness.nick` (from `self.nick`), `harness.server` (from `self.host:self.port`).
-- `_send_raw` (l. 155) — when a span is recording, prepend `@culture.dev/traceparent=<value>;culture.dev/tracestate=<value> ` to the line as IRCv3 tag prefix. Stays a string operation — minimal blast radius, matches server-side `client.py`, wire grammar identical (IRCv3 tags are space-prefixed before the prefix or verb). Don't refactor every send-helper to construct `Message` objects.
+- `_send_raw` (l. 155) — when a span is recording, prepend `@culture.dev/traceparent=<value> ` to the line as IRCv3 tag prefix. Stays a string operation — minimal blast radius, matches server-side `client.py`, wire grammar identical (IRCv3 tags are space-prefixed before the prefix or verb). Don't refactor every send-helper to construct `Message` objects. (tracestate injection is NOT in v1 — server-side client.py and server_link.py also currently pass tracestate=None when injecting; matching that behavior keeps harness/server parity. A future plan can add a current_tracestate() helper alongside current_traceparent() in culture/telemetry/context.py and thread it through both sides.)
 - `_handle` (l. 197) — wrap in `harness.irc.message.handle` span. Before opening the span, run `extract_traceparent_from_tags(msg, peer=None)`; if `status="valid"`, parent the span to the extracted context via `context_from_traceparent(tp)`. Attrs: `irc.command`, `irc.client.nick`, `culture.trace.origin=remote|local`. On `malformed`/`too_long`, attach `culture.trace.dropped_reason` and start a root.
 - Per-backend tracer name: `culture.harness.<backend>` matching `service.name`.
 
@@ -233,6 +233,7 @@ Both reset their respective module state between tests.
 - **Refining audit `actor.kind`** from `"human"` to `"harness"` for harness-originated emit_event paths. Same blocker. Track as a follow-up.
 - **Copilot token-usage metrics** — current `copilot` SDK does not expose `input_tokens` / `output_tokens` on the response. We record duration + call count only; token counters stay at zero for the copilot backend until the SDK exposes the data. Document this in `harness-telemetry.md` so operators don't think their dashboards are broken.
 - **Codex token-usage metrics** — depend on the codex app-server's `turn/completed` notification carrying `usage`. If absent in current versions, treat the same as copilot (duration + count only).
+- **Tracestate injection.** Server-side client.py and server_link.py currently pass tracestate=None when injecting (Plans 1–2). Plan 5 matches that behavior. A future plan should add a current_tracestate() helper alongside current_traceparent() in culture/telemetry/context.py and thread it through both server and harness inject sites.
 - **Bot-side OTEL instrumentation** — Plan 6.
 - **Federated-lifecycle audit gap (#296)** — orthogonal, will be addressed in a follow-up that flips the tombstone test in `test_audit_federation.py`.
 - **`audit-prune` CLI** — still deferred from Plan 4.
@@ -246,6 +247,7 @@ Both reset their respective module state between tests.
 - **Tracer name = `culture.harness.<backend>`** matches `service.name`. Don't mix.
 - **`_send_raw` tag injection is string-prefix.** Don't refactor every send-helper to construct `Message` objects — pre-pending `@culture.dev/traceparent=...;culture.dev/tracestate=... ` to the wire line is wire-grammar valid and minimizes blast radius.
 - **`record_llm_call` accepts `usage=None`** — backends that don't expose token counts still record `llm_calls` + `llm_call_duration`. The Counter for token counts simply doesn't increment. Document this contract on the helper.
+- **Tracestate is server-parity-deferred.** Don't add it to the harness ahead of the server. When we plumb it through, do BOTH sides in the same plan to keep the wire grammar consistent.
 - **Outcome labels: `success`, `error`, `timeout`.** Standardized across backends. `success` = LLM turn completed; `error` = exception caught; `timeout` = `asyncio.TimeoutError` (codex 300s, copilot 120s, acp 300s, claude no explicit timeout — treat any cancellation/timeout as `error`).
 - **Test fixtures must be reset before AND after.** Like the server-side fixtures, harness fixtures call `harness_telemetry.reset_for_tests()` in setup and teardown to avoid global-provider leakage between parallel xdist workers.
 - **The harness has its own MeterProvider.** Don't share with the server in tests — `metrics_reader` and `harness_metrics_reader` install separate providers; tests targeting the harness use the latter.
