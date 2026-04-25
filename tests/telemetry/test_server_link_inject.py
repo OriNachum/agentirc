@@ -7,7 +7,8 @@ from __future__ import annotations
 import pytest
 from opentelemetry import trace as otel_trace
 
-from culture.agentirc.server_link import _prepend_trace_tags
+from culture.agentirc.server_link import ServerLink, _prepend_trace_tags
+from culture.telemetry import current_traceparent
 from culture.telemetry.context import TRACEPARENT_TAG
 
 VALID_TP = "00-4bf92f3577b34da6a3ce929d0e0e4736-00f067aa0ba902b7-01"
@@ -32,13 +33,38 @@ def test_prepend_replaces_existing_traceparent_in_tag_block():
     stale = "00-aaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaa-bbbbbbbbbbbbbbbb-00"
     line = f"@{TRACEPARENT_TAG}={stale};vendor=x :alpha SMSG #room alpha-bob :hi"
     out = _prepend_trace_tags(line, VALID_TP)
-    assert TRACEPARENT_TAG + "=" + VALID_TP in out
-    assert stale not in out
-    assert "vendor=x" in out
+    expected = f"@{TRACEPARENT_TAG}={VALID_TP};vendor=x :alpha SMSG #room alpha-bob :hi"
+    assert out == expected
 
 
 def test_prepend_empty_line_no_op():
     assert _prepend_trace_tags("", VALID_TP) == ""
+
+
+def test_prepend_into_tag_only_line_with_no_space():
+    # Edge case: line is entirely a tag block with no body. Defensive only —
+    # never happens on the wire, but the helper must not raise.
+    line = "@vendor=foo"
+    out = _prepend_trace_tags(line, VALID_TP)
+    assert TRACEPARENT_TAG + "=" + VALID_TP in out
+    assert "vendor=foo" in out
+
+
+def test_prepend_preserves_tag_value_with_equals_signs():
+    # Tag values can legally contain '=' inside the value portion.
+    line = "@vendor=k=v :alpha SMSG #room alpha-bob :hi"
+    out = _prepend_trace_tags(line, VALID_TP)
+    assert "vendor=k=v" in out
+    assert TRACEPARENT_TAG + "=" + VALID_TP in out
+
+
+def test_prepend_into_empty_tag_block_no_leading_semicolon():
+    # @<empty> rest — must not produce '@;TP=...' (leading empty tag).
+    line = "@ :alpha SMSG #room alpha-bob :hi"
+    out = _prepend_trace_tags(line, VALID_TP)
+    assert ";;" not in out
+    assert not out.startswith("@;")
+    assert TRACEPARENT_TAG + "=" + VALID_TP in out
 
 
 # --- ServerLink.send_raw injection (uses ServerLink with a fake writer) ----
@@ -54,14 +80,9 @@ class _FakeWriter:
     async def drain(self) -> None:
         pass
 
-    def get_extra_info(self, *_a, **_kw):
-        return None
-
 
 @pytest.mark.asyncio
 async def test_send_raw_injects_traceparent_when_span_active(tracing_exporter):
-    from culture.agentirc.server_link import ServerLink
-
     writer = _FakeWriter()
     link = ServerLink(reader=None, writer=writer, server=None, password=None)
     tracer = otel_trace.get_tracer("test")
@@ -70,15 +91,18 @@ async def test_send_raw_injects_traceparent_when_span_active(tracing_exporter):
 
     assert len(writer.buf) == 1
     line = writer.buf[0].decode("utf-8").rstrip("\r\n")
-    assert line.startswith("@")
-    assert TRACEPARENT_TAG + "=" in line
-    assert ":alpha SMSG #room alpha-bob :hi" in line
+    prefix, sep, body = line.partition(" ")
+    assert sep == " "
+    assert prefix.startswith("@")
+    tags = dict(t.split("=", 1) for t in prefix[1:].split(";") if "=" in t)
+    assert TRACEPARENT_TAG in tags
+    # Tag value must be 55-char W3C format
+    assert len(tags[TRACEPARENT_TAG]) == 55
+    assert body == ":alpha SMSG #room alpha-bob :hi"
 
 
 @pytest.mark.asyncio
 async def test_send_raw_no_injection_when_no_span(tracing_exporter):
-    from culture.agentirc.server_link import ServerLink
-
     writer = _FakeWriter()
     link = ServerLink(reader=None, writer=writer, server=None, password=None)
     # No span started.
@@ -89,9 +113,6 @@ async def test_send_raw_no_injection_when_no_span(tracing_exporter):
 
 @pytest.mark.asyncio
 async def test_send_raw_traceparent_matches_active_span(tracing_exporter):
-    from culture.agentirc.server_link import ServerLink
-    from culture.telemetry import current_traceparent
-
     writer = _FakeWriter()
     link = ServerLink(reader=None, writer=writer, server=None, password=None)
     tracer = otel_trace.get_tracer("test")

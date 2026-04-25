@@ -36,6 +36,15 @@ def _prepend_trace_tags(line: str, tp: str) -> str:
     The helper is intentionally lenient: if the tag block is somehow
     ill-formed the existing text is preserved and the new tag is appended —
     tagging is best-effort, never load-bearing.
+
+    .. note:: IRCv3-escape limitation
+
+        This helper assumes the existing tag block contains no IRCv3-escaped
+        ``;`` or ``=`` characters in tag *values* (RFC-compliant values use
+        ``\\:`` and ``\\=`` escapes rather than bare characters).  This
+        assumption is safe for all current ``send_raw`` callers, which today
+        emit no tags of their own.  Revisit if a caller begins authoring tags
+        whose values contain literal ``;`` or ``=`` sequences.
     """
     if not line:
         return line
@@ -53,8 +62,9 @@ def _prepend_trace_tags(line: str, tp: str) -> str:
     tag_block = line[1:space_idx]  # strip leading '@'
     rest = line[space_idx + 1 :]
 
-    # Split existing tags on ';', replace or append the traceparent tag.
-    tags = tag_block.split(";")
+    # Split existing tags on ';', drop empty entries (e.g. from an empty tag
+    # block like "@ :rest"), then replace or append the traceparent tag.
+    tags = [t for t in tag_block.split(";") if t]
     replaced = False
     new_tags = []
     for tag in tags:
@@ -114,7 +124,10 @@ class ServerLink:
     async def send_raw(self, line: str) -> None:
         tp = current_traceparent()
         if tp:
-            line = _prepend_trace_tags(line, tp)
+            try:
+                line = _prepend_trace_tags(line, tp)
+            except Exception:  # noqa: BLE001 - telemetry must never break the link
+                logger.debug("traceparent injection failed; sending untagged", exc_info=True)
         try:
             self.writer.write(f"{line}\r\n".encode("utf-8"))
             await self.writer.drain()
