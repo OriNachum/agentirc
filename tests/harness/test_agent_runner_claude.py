@@ -9,6 +9,7 @@ from __future__ import annotations
 
 import sys
 import types
+from types import SimpleNamespace
 from unittest.mock import AsyncMock, MagicMock, patch
 
 import pytest
@@ -313,3 +314,103 @@ async def test_process_turn_no_usage_skips_token_counters(metrics_reader, regist
 
     output_val = _get_metric_value(metrics_reader, "culture.harness.llm.tokens.output")
     assert output_val is None
+
+
+@pytest.mark.asyncio
+async def test_process_turn_records_attr_form_usage(metrics_reader, registry):
+    """Attr-form usage (SimpleNamespace) is correctly extracted and recorded.
+
+    The pre-fix bug affected only the attr path: ``getattr(u, 'input_tokens', None) or rhs``
+    returns the rhs when the attr value is 0 (zero is falsy). This test verifies the
+    explicit-branch fix correctly handles an attr-style usage object.
+    """
+    runner = _make_runner(registry=registry, nick="spark-claude", model="claude-opus-4-6")
+
+    sdk = sys.modules["claude_agent_sdk"]
+    # usage is an attribute-style object (not a dict)
+    attr_usage = SimpleNamespace(input_tokens=300, output_tokens=150)
+    fake_result = sdk.ResultMessage(
+        session_id="sid-attr",
+        is_error=False,
+        usage=attr_usage,
+    )
+
+    async def _fake_query(**kwargs):
+        yield fake_result
+
+    with patch("culture.clients.claude.agent_runner.query", _fake_query):
+        result = await runner._process_turn("hello")
+
+    assert result is True
+
+    input_val = _get_metric_value(
+        metrics_reader,
+        "culture.harness.llm.tokens.input",
+        {"backend": "claude", "model": "claude-opus-4-6", "harness.nick": "spark-claude"},
+    )
+    assert input_val == 300
+
+    output_val = _get_metric_value(
+        metrics_reader,
+        "culture.harness.llm.tokens.output",
+        {"backend": "claude", "model": "claude-opus-4-6", "harness.nick": "spark-claude"},
+    )
+    assert output_val == 150
+
+
+@pytest.mark.asyncio
+async def test_process_turn_records_zero_token_usage(metrics_reader, registry):
+    """Zero-valued token counts are recorded, not silenced.
+
+    The pre-fix bug: ``getattr(u, 'input_tokens', None) or None`` evaluates to
+    ``None`` when input_tokens==0 (zero is falsy), causing ``record_llm_call``'s
+    ``isinstance(value, int)`` guard to drop the data point entirely. After the fix,
+    ``_extract_usage`` uses explicit branching, so ``0`` survives and a data point
+    with ``value=0`` is emitted.
+    """
+    runner = _make_runner(registry=registry, nick="spark-claude", model="claude-opus-4-6")
+
+    sdk = sys.modules["claude_agent_sdk"]
+    fake_result = sdk.ResultMessage(
+        session_id="sid-zero",
+        is_error=False,
+        usage={"input_tokens": 0, "output_tokens": 0},
+    )
+
+    async def _fake_query(**kwargs):
+        yield fake_result
+
+    with patch("culture.clients.claude.agent_runner.query", _fake_query):
+        result = await runner._process_turn("hello")
+
+    assert result is True
+
+    # Both token counters must exist with value 0 — the data point must be present.
+    data = metrics_reader.get_metrics_data()
+    assert data is not None
+
+    def _find_data_points(metric_name):
+        for rm in data.resource_metrics:
+            for sm in rm.scope_metrics:
+                for m in sm.metrics:
+                    if m.name == metric_name:
+                        return list(m.data.data_points)
+        return []
+
+    attrs = {"backend": "claude", "model": "claude-opus-4-6", "harness.nick": "spark-claude"}
+
+    input_dps = [
+        dp
+        for dp in _find_data_points("culture.harness.llm.tokens.input")
+        if all(dp.attributes.get(k) == v for k, v in attrs.items())
+    ]
+    assert len(input_dps) == 1, "Expected exactly one data point for tokens.input with zero value"
+    assert input_dps[0].value == 0
+
+    output_dps = [
+        dp
+        for dp in _find_data_points("culture.harness.llm.tokens.output")
+        if all(dp.attributes.get(k) == v for k, v in attrs.items())
+    ]
+    assert len(output_dps) == 1, "Expected exactly one data point for tokens.output with zero value"
+    assert output_dps[0].value == 0

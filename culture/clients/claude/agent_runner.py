@@ -16,6 +16,8 @@ from claude_agent_sdk import (
     query,
 )
 
+from culture.clients.claude.telemetry import record_llm_call
+
 if TYPE_CHECKING:
     from culture.clients.claude.telemetry import HarnessMetricsRegistry
 
@@ -33,6 +35,21 @@ def _content_block_to_dict(block: Any) -> dict[str, Any]:
     if isinstance(block, ThinkingBlock):
         return {"type": "thinking", "text": block.thinking}
     return {"type": "unknown", "repr": repr(block)}
+
+
+def _extract_usage(u: Any) -> dict[str, Any]:
+    """Extract token counts from a usage object (dict or attr-style).
+
+    Uses explicit branching so that a legitimate zero-token value is preserved
+    rather than being silenced by the ``or``-fallback pattern.
+    """
+    if isinstance(u, dict):
+        tokens_in = u.get("input_tokens")
+        tokens_out = u.get("output_tokens")
+    else:
+        tokens_in = getattr(u, "input_tokens", None)
+        tokens_out = getattr(u, "output_tokens", None)
+    return {"tokens_input": tokens_in, "tokens_output": tokens_out}
 
 
 class AgentRunner:
@@ -163,12 +180,7 @@ class AgentRunner:
                         # Extract usage if exposed by SDK; some ResultMessages have it
                         u = getattr(message, "usage", None)
                         if u is not None:
-                            usage_dict = {
-                                "tokens_input": getattr(u, "input_tokens", None)
-                                or (u.get("input_tokens") if isinstance(u, dict) else None),
-                                "tokens_output": getattr(u, "output_tokens", None)
-                                or (u.get("output_tokens") if isinstance(u, dict) else None),
-                            }
+                            usage_dict = _extract_usage(u)
                     elif isinstance(message, AssistantMessage):
                         await self._handle_assistant_message(message)
             except Exception:
@@ -179,8 +191,6 @@ class AgentRunner:
                     await self.on_exit(1)
         duration_ms = (time.perf_counter() - start_perf) * 1000.0
         if self._metrics is not None:
-            from culture.clients.claude.telemetry import record_llm_call
-
             record_llm_call(
                 self._metrics,
                 backend="claude",
