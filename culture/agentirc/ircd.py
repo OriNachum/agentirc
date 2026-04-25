@@ -23,21 +23,12 @@ from culture.constants import (
     SYSTEM_USER_PREFIX,
 )
 from culture.protocol.message import Message
-from culture.telemetry.audit import build_audit_record
+from culture.telemetry import build_audit_record, current_traceparent
 
 logger = logging.getLogger(__name__)
 
 # Span/metric attribute keys defined once so a future rename has one edit point.
 _ATTR_EVENT_TYPE = "event.type"
-
-
-def _traceparent_tag_dict(trace_id_hex: str, span_id_hex: str) -> dict[str, str]:
-    """Build a {culture.dev/traceparent: <w3c-string>} dict for audit tags.
-
-    Returns {} when either id is empty (no active span context)."""
-    if not trace_id_hex or not span_id_hex:
-        return {}
-    return {"culture.dev/traceparent": f"00-{trace_id_hex}-{span_id_hex}-01"}
 
 
 if TYPE_CHECKING:
@@ -239,6 +230,7 @@ class IRCd:
 
         trace_id_hex = ""
         span_id_hex = ""
+        tp: str | None = None
 
         # Per-call get_tracer: the `tracing_exporter` test fixture swaps the
         # global provider between tests; a cached Tracer would bind to the
@@ -252,6 +244,9 @@ class IRCd:
             if ctx.is_valid:
                 trace_id_hex = format(ctx.trace_id, "032x")
                 span_id_hex = format(ctx.span_id, "016x")
+            # Capture traceparent inside the span so trace_flags reflect
+            # the actual sampling decision for this span, not a hardcoded -01.
+            tp = current_traceparent()
             await self._run_skill_hooks(event)
             if not origin_tag:
                 await self._relay_to_peers(event)
@@ -265,6 +260,7 @@ class IRCd:
         # the irc.event.emit span (would skew render duration). The trace_id/
         # span_id captured inside the span point back at it for cross-pillar
         # joins.
+        tags: dict[str, str] = {"culture.dev/traceparent": tp} if tp else {}
         self.audit.submit(
             build_audit_record(
                 server_name=self.config.name,
@@ -272,7 +268,7 @@ class IRCd:
                 origin_tag=origin_tag,
                 trace_id=trace_id_hex,
                 span_id=span_id_hex,
-                extra_tags=_traceparent_tag_dict(trace_id_hex, span_id_hex),
+                extra_tags=tags,
             )
         )
 

@@ -179,8 +179,9 @@ class Client:
         remote_addr = f"{peer_info[0]}:{peer_info[1]}" if peer_info else ""
 
         tags: dict[str, str] = {}
-        if trace_id_hex and span_id_hex:
-            tags["culture.dev/traceparent"] = f"00-{trace_id_hex}-{span_id_hex}-01"
+        tp = current_traceparent()
+        if tp:
+            tags["culture.dev/traceparent"] = tp
 
         record = {
             "ts": _utc_iso_timestamp(time.time()),

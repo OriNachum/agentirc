@@ -38,6 +38,22 @@ _initialized_for: dict | None = None
 _sink: "AuditSink | None" = None
 
 
+def _write_all(fd: int, buf: bytes) -> int:
+    """Write ``buf`` fully to ``fd``, looping over short writes.
+
+    Returns the total bytes written. Raises OSError on hard failure.
+    """
+    written = 0
+    view = memoryview(buf)
+    while written < len(buf):
+        n = os.write(fd, view[written:])
+        if n == 0:
+            # POSIX write should never return 0 unless len(buf) is 0.
+            raise OSError("os.write returned 0 — refusing to spin")
+        written += n
+    return written
+
+
 @dataclass
 class AuditSink:
     """Async-safe JSONL audit sink.
@@ -98,7 +114,7 @@ class AuditSink:
             return
         if self._writer_task is not None:
             return
-        self.audit_dir.mkdir(parents=True, exist_ok=True, mode=0o700)
+        await asyncio.to_thread(self.audit_dir.mkdir, parents=True, exist_ok=True, mode=0o700)
         self.queue = asyncio.Queue(maxsize=self.queue_depth)
         self._writer_task = asyncio.create_task(self._writer_loop(), name="audit-writer")
 
@@ -139,11 +155,11 @@ class AuditSink:
         while True:
             record = await self.queue.get()
             try:
-                line = json.dumps(record, separators=(",", ":")) + "\n"
+                line = json.dumps(record, separators=(",", ":"), sort_keys=True) + "\n"
                 line_bytes = line.encode("utf-8")
                 self._maybe_rotate(len(line_bytes))
                 if self._current_fd != -1:
-                    os.write(self._current_fd, line_bytes)
+                    _write_all(self._current_fd, line_bytes)
                     self._current_size += len(line_bytes)
                     self.metrics.audit_writes.add(1, {"outcome": "ok"})
                 else:
@@ -158,12 +174,56 @@ class AuditSink:
                 self.metrics.audit_queue_depth.add(-1)
                 self.queue.task_done()
 
+    def _pick_rotation_path(self, today: str) -> tuple[Path, int, int]:
+        """Find the next audit file path for *today* with available capacity.
+
+        Returns (path, suffix, existing_size). The suffix is written back to
+        ``self._current_suffix`` by the caller so subsequent writes continue
+        appending to the same slot.
+        """
+        suffix_part = f".{self._current_suffix}" if self._current_suffix else ""
+        path = self.audit_dir / f"{self.server_name}-{today}{suffix_part}.jsonl"
+
+        # Respect existing file size so a mid-day restart honours the cap.
+        try:
+            existing_size = path.stat().st_size if path.exists() else 0
+        except OSError:
+            existing_size = 0
+
+        # Bump suffix until we find a slot below the cap (bounded to 1000).
+        while existing_size >= self.max_file_bytes and self._current_suffix < 1000:
+            self._current_suffix += 1
+            suffix_part = f".{self._current_suffix}"
+            path = self.audit_dir / f"{self.server_name}-{today}{suffix_part}.jsonl"
+            try:
+                existing_size = path.stat().st_size if path.exists() else 0
+            except OSError:
+                existing_size = 0
+
+        return path, self._current_suffix, existing_size
+
+    def _open_audit_file(self, path: Path) -> int:
+        """Open *path* for append-write and enforce 0600 permissions.
+
+        Returns the new file descriptor. Raises ``OSError`` on failure.
+        Using ``os.fchmod`` on the open fd avoids a race window between
+        open and a separate ``path.chmod`` call.
+        """
+        new_fd = os.open(
+            str(path),
+            os.O_WRONLY | os.O_APPEND | os.O_CREAT,
+            0o600,
+        )
+        # Enforce 0600 even if the file pre-existed with broader perms.
+        os.fchmod(new_fd, 0o600)
+        return new_fd
+
     def _maybe_rotate(self, next_record_bytes: int) -> None:
         """Open a new file if the date rolled or the size cap would be hit.
 
         Called synchronously from the writer loop. Closes the previous fd
         if one was open; opens the new one with O_WRONLY|O_APPEND|O_CREAT
-        and mode 0o600.
+        and mode 0o600 (enforced via fchmod on the open fd).
         """
         today = datetime.now(timezone.utc).strftime("%Y-%m-%d")
         date_changed = self.rotate_utc_midnight and self._current_date != today
@@ -181,35 +241,11 @@ class AuditSink:
             self._current_suffix += 1  # same day, next slot
 
         self._current_date = today
-        suffix_part = f".{self._current_suffix}" if self._current_suffix else ""
-        path = self.audit_dir / f"{self.server_name}-{today}{suffix_part}.jsonl"
-
-        # If we picked a path that already exists at non-zero size (e.g. server
-        # restart mid-day), respect its existing size for cap accounting.
-        try:
-            existing_size = path.stat().st_size if path.exists() else 0
-        except OSError:
-            existing_size = 0
-
-        # If existing file is already over the cap, bump suffix until we find
-        # a fresh slot. Bounded loop — operators can't realistically have 1000
-        # rotations in one day.
-        while existing_size >= self.max_file_bytes and self._current_suffix < 1000:
-            self._current_suffix += 1
-            suffix_part = f".{self._current_suffix}"
-            path = self.audit_dir / f"{self.server_name}-{today}{suffix_part}.jsonl"
-            try:
-                existing_size = path.stat().st_size if path.exists() else 0
-            except OSError:
-                existing_size = 0
+        path, _, existing_size = self._pick_rotation_path(today)
 
         old_fd = self._current_fd
         try:
-            new_fd = os.open(
-                str(path),
-                os.O_WRONLY | os.O_APPEND | os.O_CREAT,
-                0o600,
-            )
+            new_fd = self._open_audit_file(path)
         except OSError as exc:
             # New open failed — keep the old fd usable so the next record may
             # still write to the previous file. If old_fd was -1 we degrade to

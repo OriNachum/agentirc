@@ -28,6 +28,10 @@ Each line in the file is a single JSON object. Lines never wrap. Keys are lowerc
 separators. Order is canonicalized at write time (stable across writes). Future schema additions
 are additive only — consumers must tolerate unknown keys.
 
+Keys within each record are alphabetically sorted (the writer uses
+`json.dumps(..., sort_keys=True)`). Consumers SHOULD NOT rely on
+insertion order; future producers may emit keys in any order.
+
 | Field | Type | Required | Description |
 |-------|------|----------|-------------|
 | `ts` | string | yes | ISO 8601 UTC timestamp with microsecond precision and trailing `Z` (e.g. `2026-04-27T14:32:05.123456Z`). |
