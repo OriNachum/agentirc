@@ -7,8 +7,6 @@ import re
 from typing import TYPE_CHECKING
 
 from opentelemetry import trace as _otel_trace
-from opentelemetry.trace import NonRecordingSpan, SpanContext, TraceFlags
-from opentelemetry.trace.propagation import set_span_in_context
 
 from culture.agentirc.channel import Channel
 from culture.agentirc.skill import Event, EventType
@@ -18,6 +16,8 @@ from culture.protocol import replies
 from culture.protocol.message import Message
 from culture.telemetry.context import TRACEPARENT_TAG as _TP_TAG_NAME
 from culture.telemetry.context import (
+    context_from_traceparent,
+    current_traceparent,
     extract_traceparent_from_tags,
 )
 from culture.telemetry.context import inject_traceparent as _inject_traceparent
@@ -29,35 +29,6 @@ _TRACER_NAME = "culture.agentirc"
 # rename / sanitization layer has one edit point.
 _ATTR_BODY = "irc.message.body"
 _ATTR_SIZE = "irc.message.size"
-
-
-def _context_from_traceparent(tp: str):
-    """Build an OTEL context whose current span is a NonRecordingSpan
-    synthesized from a W3C traceparent string. The `_dispatch` span we
-    start next will be a child of this context."""
-    # Format: 00-<trace-id>-<parent-id>-<flags>
-    _, trace_hex, parent_hex, flags_hex = tp.split("-")
-    span_ctx = SpanContext(
-        trace_id=int(trace_hex, 16),
-        span_id=int(parent_hex, 16),
-        is_remote=True,
-        trace_flags=TraceFlags(int(flags_hex, 16)),
-    )
-    return set_span_in_context(NonRecordingSpan(span_ctx))
-
-
-def _current_traceparent() -> str | None:
-    """Return the W3C traceparent for the currently-active span, or None
-    if no span is recording (no-op tracer / sampler dropped).
-    """
-    span = _otel_trace.get_current_span()
-    ctx = span.get_span_context()
-    if not ctx.is_valid:
-        return None
-    return (
-        f"00-{format(ctx.trace_id, '032x')}-{format(ctx.span_id, '016x')}"
-        f"-{format(int(ctx.trace_flags), '02x')}"
-    )
 
 
 if TYPE_CHECKING:
@@ -97,7 +68,7 @@ class Client:
         # block and `send_tagged`'s tag-stripping for non-capable clients
         # would be undone here.
         if "message-tags" in self.caps:
-            tp = _current_traceparent()
+            tp = current_traceparent()
             if tp is not None:
                 _inject_traceparent(message, traceparent=tp, tracestate=None)
         try:
@@ -114,7 +85,7 @@ class Client:
         AND the client negotiated the `message-tags` capability.
         """
         if "message-tags" in self.caps:
-            tp = _current_traceparent()
+            tp = current_traceparent()
             if tp is not None:
                 # send_raw takes a pre-formatted line without an existing tag
                 # block; prefix a fresh @tag.
@@ -191,7 +162,7 @@ class Client:
         extract = extract_traceparent_from_tags(msg, peer=None)
         parent_ctx = None
         if extract.status == "valid":
-            parent_ctx = _context_from_traceparent(extract.traceparent)
+            parent_ctx = context_from_traceparent(extract.traceparent)
 
         attrs = {
             "irc.command": msg.command,
