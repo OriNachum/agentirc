@@ -2,8 +2,12 @@
 
 `init_metrics(config)` is idempotent — safe to call from multiple places.
 When `config.telemetry.enabled` or `metrics_enabled` is False, returns a
-no-op MetricsRegistry whose instruments are bound to the no-op meter
-(call sites can `instrument.add(...)` unconditionally without guards).
+MetricsRegistry whose instruments are bound to OTEL's proxy meter that
+becomes a real meter only if a provider is later installed. In production
+this is effectively no-op (no provider is installed). In tests, callers
+MUST `reset_for_tests()` between disabled-init and the `metrics_reader`
+fixture, otherwise the cached proxy instruments would forward to the
+freshly-installed test provider.
 """
 
 from __future__ import annotations
@@ -24,7 +28,6 @@ logger = logging.getLogger(__name__)
 
 _CULTURE_METER_NAME = "culture.agentirc"
 _initialized_for: dict | None = None
-_meter_provider: MeterProvider | None = None
 _registry: "MetricsRegistry | None" = None
 
 
@@ -60,9 +63,8 @@ class MetricsRegistry:
 
 def reset_for_tests() -> None:
     """Reset module state so each test gets a fresh provider. Test-only."""
-    global _initialized_for, _meter_provider, _registry
+    global _initialized_for, _registry
     _initialized_for = None
-    _meter_provider = None
     _registry = None
     # _METER_PROVIDER and Once live on the _internal sub-package, not the
     # top-level metrics module (unlike the trace API which exposes them directly).
@@ -154,11 +156,11 @@ def init_metrics(config: ServerConfig) -> MetricsRegistry:
     """Initialize MeterProvider + register instruments. Idempotent.
 
     Returns a MetricsRegistry. When telemetry is disabled or
-    metrics_enabled is False, returns a no-op registry whose instruments
-    are bound to the global no-op meter — call sites can record()
-    unconditionally without guards.
+    metrics_enabled is False, instruments are bound to OTEL's proxy meter
+    — call sites can `instrument.add(...)` / `.record(...)` unconditionally
+    without guards. Production never installs a provider in this case.
     """
-    global _initialized_for, _meter_provider, _registry
+    global _initialized_for, _registry
 
     tcfg = config.telemetry
     snapshot = asdict(tcfg)
@@ -192,7 +194,6 @@ def init_metrics(config: ServerConfig) -> MetricsRegistry:
     meter = metrics.get_meter(_CULTURE_METER_NAME)
     _registry = _build_registry(meter)
     _initialized_for = snapshot
-    _meter_provider = provider
     logger.info(
         "OTEL metrics initialized: service=%s instance=%s endpoint=%s interval=%dms",
         tcfg.service_name,

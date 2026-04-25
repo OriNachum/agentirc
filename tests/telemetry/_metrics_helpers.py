@@ -6,8 +6,6 @@ These helpers walk it for the common assertions we need."""
 
 from __future__ import annotations
 
-from typing import Any
-
 
 def _walk_data_points(reader, name: str):
     """Yield every data point across all resources/scopes for a metric `name`."""
@@ -21,12 +19,19 @@ def _walk_data_points(reader, name: str):
                     yield from metric.data.data_points
 
 
-def _attrs_match(point_attrs: dict, expected: dict) -> bool:
+def _attrs_match(point_attrs: dict, expected: dict | None) -> bool:
+    if not expected:
+        return True
     return all(point_attrs.get(k) == v for k, v in expected.items())
 
 
-def get_counter_value(reader, name: str, **attrs: Any) -> float:
-    """Sum of counter values for points matching `attrs`. 0.0 if absent."""
+def get_counter_value(reader, name: str, attrs: dict | None = None) -> float:
+    """Sum of counter values for points matching `attrs`. 0.0 if absent.
+
+    attrs=None or attrs={} matches all points (sums across all label combinations).
+    attrs={"k": "v"} filters to points where attributes contain those k→v pairs.
+    Supports label keys with dots (e.g. ``event.type``).
+    """
     total = 0.0
     for point in _walk_data_points(reader, name):
         if _attrs_match(dict(point.attributes), attrs):
@@ -34,16 +39,26 @@ def get_counter_value(reader, name: str, **attrs: Any) -> float:
     return total
 
 
-def get_up_down_value(reader, name: str, **attrs: Any) -> float:
-    """Latest UpDownCounter value for points matching `attrs`. 0.0 if absent."""
+def get_up_down_value(reader, name: str, attrs: dict | None = None) -> float:
+    """Latest UpDownCounter value for points matching `attrs`. 0.0 if absent.
+
+    attrs=None or attrs={} matches all points.
+    attrs={"k": "v"} filters to points where attributes contain those k→v pairs.
+    Supports label keys with dots (e.g. ``event.type``).
+    """
     for point in _walk_data_points(reader, name):
         if _attrs_match(dict(point.attributes), attrs):
             return point.value
     return 0.0
 
 
-def get_histogram_count(reader, name: str, **attrs: Any) -> int:
-    """Count of recorded values for histogram points matching `attrs`."""
+def get_histogram_count(reader, name: str, attrs: dict | None = None) -> int:
+    """Count of recorded values for histogram points matching `attrs`.
+
+    attrs=None or attrs={} matches all points (sums counts across all label combinations).
+    attrs={"k": "v"} filters to points where attributes contain those k→v pairs.
+    Supports label keys with dots (e.g. ``event.type``).
+    """
     total = 0
     for point in _walk_data_points(reader, name):
         if _attrs_match(dict(point.attributes), attrs):
