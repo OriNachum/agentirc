@@ -30,7 +30,7 @@ def _spans_with_name(exporter, name):
 
 @pytest.mark.asyncio
 async def test_relay_span_recorded_with_event_type_and_peer(tracing_exporter, linked_servers):
-    server_a, server_b = linked_servers
+    server_a, _ = linked_servers
     tracing_exporter.clear()
 
     # Trigger a relay by calling relay_event directly (skip _dispatch path).
@@ -57,7 +57,7 @@ async def test_relay_resigns_per_hop(tracing_exporter, linked_servers):
     """Outbound traceparent on relayed wire bytes points to the relay span,
     NOT to whatever inbound trace was active. This is the per-hop re-sign rule.
     """
-    server_a, server_b = linked_servers
+    server_a, _ = linked_servers
     tracing_exporter.clear()
 
     # Record raw bytes server_b sees on the link from alpha. We swap the
@@ -100,7 +100,7 @@ async def test_relay_resigns_per_hop(tracing_exporter, linked_servers):
     line = smsg_lines[0]
     # Extract the traceparent value from the @-tag block.
     tag_block = line.split(" ", 1)[0][1:]
-    tags = dict(t.split("=", 1) for t in tag_block.split(";") if "=" in t)
+    tags = {k: v for k, v in (t.split("=", 1) for t in tag_block.split(";") if "=" in t)}
     tp_value = tags[TRACEPARENT_TAG]
     # W3C: 00-<trace-id>-<parent-id>-<flags>
     parts = tp_value.split("-")

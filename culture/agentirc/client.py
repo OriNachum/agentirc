@@ -7,6 +7,7 @@ import re
 from typing import TYPE_CHECKING
 
 from opentelemetry import trace as _otel_trace
+from opentelemetry.context import Context as _OtelContext
 from opentelemetry.trace import Span as _OtelSpan
 
 from culture.agentirc.channel import Channel
@@ -26,10 +27,12 @@ from culture.telemetry.context import inject_traceparent as _inject_traceparent
 # OTEL instrumentation name (must match `_CULTURE_TRACER_NAME` in
 # culture/telemetry/tracing.py so trace consumers see one consistent value).
 _TRACER_NAME = "culture.agentirc"
-# Span attribute keys for PRIVMSG body capture, defined once so a future
-# rename / sanitization layer has one edit point.
+# Span attribute keys, defined once so a future rename / sanitization layer
+# has one edit point.
 _ATTR_BODY = "irc.message.body"
 _ATTR_SIZE = "irc.message.size"
+_ATTR_NICK = "irc.client.nick"
+_ATTR_CHANNEL = "irc.channel"
 
 
 if TYPE_CHECKING:
@@ -172,9 +175,10 @@ class Client:
 
     async def _dispatch(self, msg: Message) -> None:
         extract = extract_traceparent_from_tags(msg, peer=None)
-        parent_ctx = None
         if extract.status == "valid":
-            parent_ctx = context_from_traceparent(extract.traceparent)
+            parent_ctx: _OtelContext | None = context_from_traceparent(extract.traceparent)
+        else:
+            parent_ctx = _OtelContext()  # force root: detach from session span
 
         verb = msg.command.upper()
         attrs = {
@@ -289,7 +293,7 @@ class Client:
         self.nick = nick
         self.server.clients[nick] = self
         if self._session_span is not None:
-            self._session_span.set_attribute("irc.client.nick", nick)
+            self._session_span.set_attribute(_ATTR_NICK, nick)
         await self._try_register()
 
     async def _handle_user(self, msg: Message) -> None:
@@ -343,7 +347,7 @@ class Client:
         channel_name = msg.params[0]
         with _otel_trace.get_tracer(_TRACER_NAME).start_as_current_span(
             "irc.join",
-            attributes={"irc.channel": channel_name, "irc.client.nick": self.nick or ""},
+            attributes={_ATTR_CHANNEL: channel_name, _ATTR_NICK: self.nick or ""},
         ):
             if not channel_name.startswith("#"):
                 return
@@ -393,7 +397,7 @@ class Client:
         channel_name = msg.params[0]
         with _otel_trace.get_tracer(_TRACER_NAME).start_as_current_span(
             "irc.part",
-            attributes={"irc.channel": channel_name, "irc.client.nick": self.nick or ""},
+            attributes={_ATTR_CHANNEL: channel_name, _ATTR_NICK: self.nick or ""},
         ):
             reason = msg.params[1] if len(msg.params) > 1 else ""
 

@@ -13,7 +13,7 @@ Format follows [Keep a Changelog](https://keepachangelog.com/).
 - `irc.s2s.relay` span on outbound relay enforcing the re-sign-per-hop rule.
 - `irc.client.session` span over Client connection lifetime (#290).
 - `irc.join` and `irc.part` spans (#290).
-- Public `culture.telemetry.context_from_traceparent` and `current_traceparent` helpers.
+- Public `culture.telemetry.context_from_traceparent` and `culture.telemetry.current_traceparent` helpers.
 - Single traceparent injection choke point at `ServerLink.send_raw`.
 - End-to-end propagation tests proving one `trace_id` spans federated client → server → relay → server hops.
 

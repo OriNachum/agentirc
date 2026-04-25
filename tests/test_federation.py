@@ -1220,7 +1220,7 @@ async def test_replay_event_handles_string_typed_message_event(linked_servers):
     silently skipped — a federated MESSAGE event reaching backfill replay
     would not produce the SMSG/SNOTICE wire output.
     """
-    server_a, server_b = linked_servers
+    server_a, _ = linked_servers
     link_to_b = server_a.links["beta"]
 
     captured: list[bytes] = []

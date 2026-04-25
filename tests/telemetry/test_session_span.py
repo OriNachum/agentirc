@@ -77,3 +77,29 @@ async def test_part_span_records_channel_and_nick(tracing_exporter, server, make
     attrs = dict(span.attributes or {})
     assert attrs.get("irc.channel") == "#part-test"
     assert attrs.get("irc.client.nick") == "testserv-carol"
+
+
+@pytest.mark.asyncio
+async def test_command_span_is_root_when_no_traceparent(tracing_exporter, server, make_client):
+    """Plan 2 spec: missing traceparent → root span. Must NOT inherit
+    irc.client.session as parent."""
+    tracing_exporter.clear()
+    client = await make_client(nick="testserv-root", user="root")
+    await client.send("PING token")
+    await client.recv_all(timeout=0.5)
+
+    # Wait for the PING command span.
+    for _ in range(50):
+        spans = [s for s in tracing_exporter.get_finished_spans() if s.name == "irc.command.PING"]
+        if spans:
+            break
+        await asyncio.sleep(0.02)
+
+    spans = [s for s in tracing_exporter.get_finished_spans() if s.name == "irc.command.PING"]
+    assert spans, "no irc.command.PING span recorded"
+    span = spans[-1]
+    # Span must be root (no parent) — must NOT be parented to irc.client.session.
+    assert span.parent is None, (
+        f"irc.command.PING should be root when no traceparent, "
+        f"got parent {span.parent} (likely inherited the session span)"
+    )

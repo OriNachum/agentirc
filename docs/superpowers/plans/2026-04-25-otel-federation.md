@@ -163,7 +163,7 @@ Extend `culture/protocol/extensions/tracing.md` example block with a two-line SE
 
 ### 9. Version bump
 
-`/version-bump minor` → `8.2.0` → `8.3.0`. Updates `pyproject.toml`, `culture/__init__.py`, `CHANGELOG.md`. Stage `uv.lock` if it moves.
+`/version-bump minor` → `8.2.0` → `8.3.0`. Updates `pyproject.toml`, `CHANGELOG.md`. Stage `uv.lock` if it moves.
 
 ## Files to modify
 
@@ -175,7 +175,7 @@ Extend `culture/protocol/extensions/tracing.md` example block with a two-line SE
 - `tests/telemetry/test_federation_propagation.py` — **new**, federation propagation tests (see "Tests" below).
 - `tests/telemetry/test_session_span.py` — **new**, `Client.handle` + `_handle_join` / `_handle_part` span coverage for #290.
 - `tests/test_federation.py` (extend) — regression for #291.
-- `pyproject.toml`, `culture/__init__.py`, `CHANGELOG.md` — version bump 8.2.0 → 8.3.0.
+- `pyproject.toml`, `CHANGELOG.md` — version bump 8.2.0 → 8.3.0.
 
 ## Tests
 

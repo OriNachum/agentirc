@@ -40,12 +40,12 @@ def _spans_with_name(exporter, name):
 async def test_dispatch_valid_traceparent_creates_child(tracing_exporter, linked_servers):
     """Inbound message with valid traceparent → s2s.<VERB> span is parented
     under the extracted remote context (shared trace_id)."""
-    server_a, server_b = linked_servers
+    server_a, _ = linked_servers
     tracing_exporter.clear()
 
     # Send a fabricated SMSG line with a valid traceparent tag from alpha→beta.
     link_alpha_to_beta = server_a.links["beta"]
-    line = f"@{TRACEPARENT_TAG}={VALID_TP} " f":alpha SMSG #s2s-trace-test alpha-bob :hello"
+    line = f"@{TRACEPARENT_TAG}={VALID_TP} :alpha SMSG #s2s-trace-test alpha-bob :hello"
     # Use the writer directly to inject from alpha's side without going
     # through send_raw (which would re-sign with alpha's session traceparent).
     link_alpha_to_beta.writer.write((line + "\r\n").encode("utf-8"))
@@ -69,7 +69,7 @@ async def test_dispatch_valid_traceparent_creates_child(tracing_exporter, linked
 
 @pytest.mark.asyncio
 async def test_dispatch_missing_traceparent_root_span(tracing_exporter, linked_servers):
-    server_a, server_b = linked_servers
+    server_a, _ = linked_servers
     tracing_exporter.clear()
 
     link_alpha_to_beta = server_a.links["beta"]
@@ -93,11 +93,11 @@ async def test_dispatch_missing_traceparent_root_span(tracing_exporter, linked_s
 
 @pytest.mark.asyncio
 async def test_dispatch_malformed_traceparent_dropped(tracing_exporter, linked_servers):
-    server_a, server_b = linked_servers
+    server_a, _ = linked_servers
     tracing_exporter.clear()
 
     link_alpha_to_beta = server_a.links["beta"]
-    line = f"@{TRACEPARENT_TAG}=not-a-traceparent " ":alpha SMSG #s2s-trace-test alpha-bob :hi"
+    line = f"@{TRACEPARENT_TAG}=not-a-traceparent :alpha SMSG #s2s-trace-test alpha-bob :hi"
     link_alpha_to_beta.writer.write((line + "\r\n").encode("utf-8"))
     await link_alpha_to_beta.writer.drain()
     await _wait_for_span(tracing_exporter, "irc.s2s.SMSG")
@@ -114,12 +114,12 @@ async def test_dispatch_malformed_traceparent_dropped(tracing_exporter, linked_s
 
 @pytest.mark.asyncio
 async def test_dispatch_oversize_traceparent_dropped(tracing_exporter, linked_servers):
-    server_a, server_b = linked_servers
+    server_a, _ = linked_servers
     tracing_exporter.clear()
 
     link_alpha_to_beta = server_a.links["beta"]
     oversize = VALID_TP + "extrachars"
-    line = f"@{TRACEPARENT_TAG}={oversize} " ":alpha SMSG #s2s-trace-test alpha-bob :hi"
+    line = f"@{TRACEPARENT_TAG}={oversize} :alpha SMSG #s2s-trace-test alpha-bob :hi"
     link_alpha_to_beta.writer.write((line + "\r\n").encode("utf-8"))
     await link_alpha_to_beta.writer.drain()
     await _wait_for_span(tracing_exporter, "irc.s2s.SMSG")
@@ -132,3 +132,25 @@ async def test_dispatch_oversize_traceparent_dropped(tracing_exporter, linked_se
     assert attrs.get("culture.federation.peer") == "alpha"
     # Tag was dropped — span is not parented to a remote trace.
     assert span.parent is None or not span.parent.is_remote
+
+
+@pytest.mark.asyncio
+async def test_s2s_dispatch_span_is_root_when_no_traceparent(tracing_exporter, linked_servers):
+    """Plan 2 spec: missing traceparent → root span on inbound S2S, even
+    though irc.s2s.session is active."""
+    server_a, _ = linked_servers
+    tracing_exporter.clear()
+
+    link_alpha_to_beta = server_a.links["beta"]
+    # Plain SMSG, no traceparent tag.
+    link_alpha_to_beta.writer.write(b":alpha SMSG #root-test alpha-bob :no-tp\r\n")
+    await link_alpha_to_beta.writer.drain()
+    await _wait_for_span(tracing_exporter, "irc.s2s.SMSG")
+
+    spans = _spans_with_name(tracing_exporter, "irc.s2s.SMSG")
+    assert spans
+    span = spans[-1]
+    assert span.parent is None, (
+        f"irc.s2s.SMSG should be root when no traceparent, "
+        f"got parent {span.parent} (likely inherited irc.s2s.session)"
+    )

@@ -8,6 +8,7 @@ import logging
 from typing import TYPE_CHECKING
 
 from opentelemetry import trace as otel_trace
+from opentelemetry.context import Context as _OtelContext
 
 from culture.agentirc.remote_client import RemoteClient
 from culture.agentirc.skill import Event, EventType
@@ -43,14 +44,14 @@ def _prepend_trace_tags(line: str, tp: str) -> str:
     ill-formed the existing text is preserved and the new tag is appended —
     tagging is best-effort, never load-bearing.
 
-    .. note:: IRCv3-escape limitation
+    .. note:: Parsing limitation
 
-        This helper assumes the existing tag block contains no IRCv3-escaped
-        ``;`` or ``=`` characters in tag *values* (RFC-compliant values use
-        ``\\:`` and ``\\=`` escapes rather than bare characters).  This
-        assumption is safe for all current ``send_raw`` callers, which today
-        emit no tags of their own.  Revisit if a caller begins authoring tags
-        whose values contain literal ``;`` or ``=`` sequences.
+        This helper does not fully parse or unescape IRCv3 tag values; it
+        simply splits the tag block on ``;`` and separates each tag's key from
+        its value on the first ``=``. This is safe for current ``send_raw``
+        callers, which today emit no tags of their own. Revisit if a caller
+        begins authoring tags whose values may contain IRCv3-escaped
+        semicolons.
     """
     if not line:
         return line
@@ -202,9 +203,10 @@ class ServerLink:
         handler = getattr(self, f"_handle_{msg.command.lower()}", None)
 
         extracted = extract_traceparent_from_tags(msg, peer=self.peer_name)
-        parent_ctx = None
         if extracted.status == "valid":
-            parent_ctx = context_from_traceparent(extracted.traceparent)
+            parent_ctx: _OtelContext | None = context_from_traceparent(extracted.traceparent)
+        else:
+            parent_ctx = _OtelContext()  # force root: detach from session span
 
         attrs = {
             "irc.command": verb,
