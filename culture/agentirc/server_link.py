@@ -7,6 +7,8 @@ import json
 import logging
 from typing import TYPE_CHECKING
 
+from opentelemetry import trace as otel_trace
+
 from culture.agentirc.remote_client import RemoteClient
 from culture.agentirc.skill import Event, EventType
 from culture.aio import maybe_await
@@ -15,6 +17,10 @@ from culture.constants import SYSTEM_USER_PREFIX
 from culture.protocol.message import Message
 from culture.telemetry import current_traceparent
 from culture.telemetry.context import TRACEPARENT_TAG
+
+# OTEL instrumentation name (must match `_CULTURE_TRACER_NAME` in
+# culture/telemetry/tracing.py so all spans go through one tracer instance).
+_TRACER_NAME = "culture.agentirc"
 
 if TYPE_CHECKING:
     from culture.agentirc.ircd import IRCd
@@ -107,6 +113,7 @@ class ServerLink:
         self._peer_pass: str | None = None
         self.last_seen_seq: int = 0
         self._squit_received: bool = False
+        self._session_span = None
 
     def should_relay(self, channel_name: str) -> bool:
         """Check if a channel event should be relayed over this link."""
@@ -153,31 +160,38 @@ class ServerLink:
 
     async def handle(self, initial_msg: str | None = None) -> None:
         """Main S2S connection loop."""
-        try:
-            if self.initiator:
-                await self._send_handshake()
-
-            buffer = ""
-            if initial_msg:
-                buffer = initial_msg + "\n"
-                buffer = await self._process_buffer(buffer)
-
-            while True:
-                data = await self.reader.read(4096)
-                if not data:
-                    break
-                buffer += data.decode("utf-8", errors="replace")
-                buffer = buffer.replace("\r\n", "\n").replace("\r", "\n")
-                buffer = await self._process_buffer(buffer)
-        except (ConnectionError, asyncio.IncompleteReadError):
-            pass
-        finally:
-            await self.server._remove_link(self, squit=self._squit_received)
-            self.writer.close()
+        tracer = otel_trace.get_tracer(_TRACER_NAME)
+        direction = "outbound" if self.initiator else "inbound"
+        with tracer.start_as_current_span(
+            "irc.s2s.session",
+            attributes={"s2s.direction": direction},
+        ) as span:
+            self._session_span = span
             try:
-                await self.writer.wait_closed()
-            except ConnectionError:
+                if self.initiator:
+                    await self._send_handshake()
+
+                buffer = ""
+                if initial_msg:
+                    buffer = initial_msg + "\n"
+                    buffer = await self._process_buffer(buffer)
+
+                while True:
+                    data = await self.reader.read(4096)
+                    if not data:
+                        break
+                    buffer += data.decode("utf-8", errors="replace")
+                    buffer = buffer.replace("\r\n", "\n").replace("\r", "\n")
+                    buffer = await self._process_buffer(buffer)
+            except (ConnectionError, asyncio.IncompleteReadError):
                 pass
+            finally:
+                await self.server._remove_link(self, squit=self._squit_received)
+                self.writer.close()
+                try:
+                    await self.writer.wait_closed()
+                except ConnectionError:
+                    pass
 
     async def _send_handshake(self) -> None:
         await self.send_raw(f"PASS {self.password}")
@@ -255,6 +269,8 @@ class ServerLink:
         await self._validate_peer_credentials()
 
         self._authenticated = True
+        if self._session_span is not None:
+            self._session_span.set_attribute("s2s.peer", self.peer_name)
         self.server.links[self.peer_name] = self
         self.server.cancel_link_retry(self.peer_name)
 
