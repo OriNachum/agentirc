@@ -133,6 +133,19 @@ Two metrics surface the audit pipeline's health (collected via the OTEL collecto
 
 These appear in Grafana / Prometheus dashboards alongside the rest of the `culture.*` metrics from 8.4.0.
 
+## Public API
+
+For embedding the audit pipeline in custom code (e.g. an external admin tool that wants to write into the same JSONL), `culture.telemetry` re-exports four symbols:
+
+| Symbol | Purpose |
+|--------|---------|
+| `AuditSink` | The dataclass that owns the queue + writer task + rotation. |
+| `init_audit(config, metrics)` | Idempotent constructor; mirrors `init_metrics` / `init_telemetry`. |
+| `build_audit_record(server_name, event, origin_tag, trace_id, span_id, ...)` | Build a schema-compliant record dict from an `Event`. Used by `IRCd.emit_event`. |
+| `utc_iso_timestamp(epoch_seconds)` | Format a `time.time()` value as the ISO 8601 UTC string the `ts` field expects. Used by `Client._process_buffer` for PARSE_ERROR records. |
+
+PARSE_ERROR records cannot go through `build_audit_record` (no `Event` object) — callers construct the dict inline using `utc_iso_timestamp` for the `ts` field and the schema in [`audit.md`](https://github.com/agentculture/culture/blob/main/culture/protocol/extensions/audit.md) for everything else.
+
 ## Known limitations (v1)
 
 - **`actor.kind` is always `human` in 8.5.0.** Plan 5 (harness) and Plan 6 (bots) will refine to `bot`/`harness` based on the connection type.
