@@ -100,7 +100,7 @@ async def test_relay_resigns_per_hop(tracing_exporter, linked_servers):
     line = smsg_lines[0]
     # Extract the traceparent value from the @-tag block.
     tag_block = line.split(" ", 1)[0][1:]
-    tags = {k: v for k, v in (t.split("=", 1) for t in tag_block.split(";") if "=" in t)}
+    tags = dict(t.split("=", 1) for t in tag_block.split(";") if "=" in t)
     tp_value = tags[TRACEPARENT_TAG]
     # W3C: 00-<trace-id>-<parent-id>-<flags>
     parts = tp_value.split("-")

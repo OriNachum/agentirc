@@ -78,7 +78,7 @@ class _FakeWriter:
         self.buf.append(data)
 
     async def drain(self) -> None:
-        pass
+        """No-op: tests don't exercise asyncio writer back-pressure."""
 
 
 @pytest.mark.asyncio
