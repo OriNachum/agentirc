@@ -996,6 +996,7 @@ class ServerLink:
             "s2s.peer": self.peer_name or "",
         }
         relay_started = time.perf_counter()
+        relayed = False
         # Single span name (no verb suffix): the wire verb is decided downstream
         # by _RELAY_DISPATCH or the SEVENT fallback, after this span opens.
         with otel_trace.get_tracer(_TRACER_NAME).start_as_current_span(
@@ -1005,6 +1006,11 @@ class ServerLink:
             handler = self._RELAY_DISPATCH.get(event.type)
             if handler:
                 await maybe_await(handler(self, event, origin))
+                # v1: typed _relay_* handlers may early-return on internal trust checks
+                # without signaling. We optimistically count typed dispatch as relayed.
+                # Future: refactor _relay_* to return bool so latency only fires on
+                # genuine sends.
+                relayed = True
             else:
                 # If no typed relay exists, fall back to generic SEVENT.
                 # v1 assumes all peers support SEVENT; cap negotiation is deferred — see plan task 12.
@@ -1017,11 +1023,13 @@ class ServerLink:
                     await self.send_raw(
                         f":{origin} SEVENT {origin} {seq} {event_type_str} {target} :{encoded}"
                     )
+                    relayed = True
 
-        self.server.metrics.s2s_relay_latency.record(
-            (time.perf_counter() - relay_started) * 1000.0,
-            {"event.type": event_type_str, "peer": self.peer_name or ""},
-        )
+        if relayed:
+            self.server.metrics.s2s_relay_latency.record(
+                (time.perf_counter() - relay_started) * 1000.0,
+                {"event.type": event_type_str, "peer": self.peer_name or ""},
+            )
 
     async def _relay_message(self, event: Event, origin: str) -> None:
         target = event.channel or event.data.get("target", "")

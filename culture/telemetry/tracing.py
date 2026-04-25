@@ -78,7 +78,10 @@ def init_telemetry(config: ServerConfig) -> Tracer:
     tcfg = config.telemetry
     # Compare against an immutable snapshot so in-place mutation of the
     # caller's TelemetryConfig is detected (the dataclass is not frozen).
-    snapshot = asdict(tcfg)
+    # Include config.name so two IRCd instances with identical TelemetryConfig
+    # but different names each get their own tracer and correct
+    # service.instance.id resource attribute. Mirrors metrics.py for parity.
+    snapshot = {"telemetry": asdict(tcfg), "instance": config.name}
     if _initialized_for == snapshot and _tracer is not None:
         return _tracer
 

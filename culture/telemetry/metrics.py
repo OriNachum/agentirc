@@ -28,6 +28,7 @@ logger = logging.getLogger(__name__)
 
 _CULTURE_METER_NAME = "culture.agentirc"
 _initialized_for: dict | None = None
+_meter_provider: "MeterProvider | None" = None
 _registry: "MetricsRegistry | None" = None
 
 
@@ -63,7 +64,13 @@ class MetricsRegistry:
 
 def reset_for_tests() -> None:
     """Reset module state so each test gets a fresh provider. Test-only."""
-    global _initialized_for, _registry
+    global _initialized_for, _meter_provider, _registry
+    if _meter_provider is not None:
+        try:
+            _meter_provider.shutdown()
+        except Exception:  # noqa: BLE001
+            pass
+        _meter_provider = None
     _initialized_for = None
     _registry = None
     # _METER_PROVIDER and Once live on the _internal sub-package, not the
@@ -114,7 +121,7 @@ def _build_registry(meter: Meter) -> MetricsRegistry:
         # Federation
         s2s_messages=meter.create_counter(
             "culture.s2s.messages",
-            description="Inbound/outbound S2S messages by verb and peer",
+            description="Inbound S2S messages by verb and peer (outbound deferred)",
         ),
         s2s_relay_latency=meter.create_histogram(
             "culture.s2s.relay_latency",
@@ -160,12 +167,25 @@ def init_metrics(config: ServerConfig) -> MetricsRegistry:
     — call sites can `instrument.add(...)` / `.record(...)` unconditionally
     without guards. Production never installs a provider in this case.
     """
-    global _initialized_for, _registry
+    global _initialized_for, _meter_provider, _registry
 
     tcfg = config.telemetry
-    snapshot = asdict(tcfg)
+    # Include config.name so two IRCd instances with identical TelemetryConfig
+    # but different names each get their own registry and correct
+    # service.instance.id resource attribute.
+    snapshot = {"telemetry": asdict(tcfg), "instance": config.name}
     if _initialized_for == snapshot and _registry is not None:
         return _registry
+
+    # Tear down the previous SDK provider before installing a new one.
+    # PeriodicExportingMetricReader spawns a background thread that needs an
+    # explicit shutdown call; otherwise tests leak workers and may double-export.
+    if _meter_provider is not None:
+        try:
+            _meter_provider.shutdown()
+        except Exception:  # noqa: BLE001 - shutdown errors must not crash init
+            logger.debug("MeterProvider shutdown failed", exc_info=True)
+        _meter_provider = None
 
     if not tcfg.enabled or not tcfg.metrics_enabled:
         meter = metrics.get_meter(_CULTURE_METER_NAME)
@@ -190,6 +210,7 @@ def init_metrics(config: ServerConfig) -> MetricsRegistry:
     )
     provider = MeterProvider(resource=resource, metric_readers=[reader])
     metrics.set_meter_provider(provider)
+    _meter_provider = provider
 
     meter = metrics.get_meter(_CULTURE_METER_NAME)
     _registry = _build_registry(meter)

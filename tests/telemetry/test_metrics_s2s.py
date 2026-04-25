@@ -8,7 +8,6 @@ import pytest
 
 from culture.agentirc.config import LinkConfig, ServerConfig
 from culture.agentirc.ircd import IRCd
-from tests.conftest import TEST_LINK_PASSWORD
 from tests.telemetry._metrics_helpers import (
     get_counter_value,
     get_histogram_count,
