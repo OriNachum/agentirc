@@ -137,8 +137,11 @@ class ServerLink:
             except Exception:  # noqa: BLE001 - telemetry must never break the link
                 logger.debug("traceparent injection failed; sending untagged", exc_info=True)
         try:
-            self.writer.write(f"{line}\r\n".encode("utf-8"))
+            wire = f"{line}\r\n".encode("utf-8")
+            self.writer.write(wire)
             await self.writer.drain()
+            if self.server is not None:
+                self.server.metrics.irc_bytes_sent.add(len(wire), {"direction": "s2s"})
         except OSError:
             pass
 
@@ -155,6 +158,12 @@ class ServerLink:
             line, buffer = buffer.split("\n", 1)
             if line.strip():
                 msg = Message.parse(line)
+                # +2 accounts for the \r\n that was stripped during line-split.
+                line_bytes = len(line.encode("utf-8")) + 2
+                self.server.metrics.irc_bytes_received.add(line_bytes, {"direction": "s2s"})
+                self.server.metrics.irc_message_size.record(
+                    line_bytes, {"verb": msg.command, "direction": "s2s"}
+                )
                 if msg.command:
                     await self._dispatch(msg)
         return buffer

@@ -77,8 +77,12 @@ class Client:
             if tp is not None:
                 _inject_traceparent(message, traceparent=tp, tracestate=None)
         try:
-            self.writer.write(message.format().encode("utf-8"))
+            wire = message.format().encode("utf-8")
+            self.writer.write(wire)
             await self.writer.drain()
+            # Record bytes after a successful drain so we don't count
+            # writes that immediately faulted.
+            self.server.metrics.irc_bytes_sent.add(len(wire), {"direction": "s2c"})
         except OSError:
             pass  # Client disconnected; cleanup happens in ircd._handle_connection
 
@@ -96,8 +100,10 @@ class Client:
                 # block; prefix a fresh @tag.
                 line = f"@{_TP_TAG_NAME}={tp} {line}"
         try:
-            self.writer.write(f"{line}\r\n".encode("utf-8"))
+            wire = f"{line}\r\n".encode("utf-8")
+            self.writer.write(wire)
             await self.writer.drain()
+            self.server.metrics.irc_bytes_sent.add(len(wire), {"direction": "s2c"})
         except OSError:
             pass  # Client disconnected; cleanup happens in ircd._handle_connection
 
@@ -142,6 +148,13 @@ class Client:
                         },
                     )
                     continue
+                # Record received bytes + message size for every successfully-parsed
+                # line.  +2 accounts for the \r\n that was stripped during line-split.
+                line_bytes = len(line.encode("utf-8")) + 2
+                self.server.metrics.irc_bytes_received.add(line_bytes, {"direction": "c2s"})
+                self.server.metrics.irc_message_size.record(
+                    line_bytes, {"verb": msg.command, "direction": "c2s"}
+                )
                 if msg.command:
                     await self._dispatch(msg)
             return buffer
@@ -725,6 +738,7 @@ class Client:
             for member in list(channel.members):
                 if member is not self:
                     await member.send(relay)
+            self.server.metrics.privmsg_delivered.add(1, {"kind": "channel", "channel": target})
             event_data = {"text": text}
             if is_notice:
                 event_data["notice"] = True
@@ -759,6 +773,7 @@ class Client:
                 )
             else:
                 await recipient.send(relay)
+            self.server.metrics.privmsg_delivered.add(1, {"kind": "dm"})
             event_data = {"text": text, "target": target}
             if is_notice:
                 event_data["notice"] = True
