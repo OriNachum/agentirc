@@ -4,6 +4,21 @@ All notable changes to this project will be documented in this file.
 
 Format follows [Keep a Changelog](https://keepachangelog.com/).
 
+## [8.4.0] - 2026-04-25
+
+### Added
+
+- `culture/telemetry/metrics.py`: `init_metrics(config)` + `MetricsRegistry` dataclass for all 15 server-side instruments — mirrors `tracing.py`'s idempotency + no-op pattern.
+- Public `culture.telemetry.MetricsRegistry` and `culture.telemetry.init_metrics`.
+- `TelemetryConfig.metrics_enabled` (default `True`) and `metrics_export_interval_ms` (default 10000).
+- Message-flow metrics: `culture.irc.bytes_sent`, `culture.irc.bytes_received`, `culture.irc.message.size`, `culture.privmsg.delivered`.
+- Events metrics: `culture.events.emitted`, `culture.events.render.duration`.
+- Federation metrics: `culture.s2s.messages` (inbound), `culture.s2s.relay_latency`, `culture.s2s.links_active`, `culture.s2s.link_events`.
+- Client metrics: `culture.clients.connected`, `culture.client.session.duration`, `culture.client.command.duration`.
+- `culture.trace.inbound` counter — closes Plan 2's deferral.
+- `tests/conftest.py` `metrics_reader` fixture parallel to `tracing_exporter`.
+- `tests/telemetry/_metrics_helpers.py` — `get_counter_value`, `get_histogram_count`, `get_up_down_value`.
+
 ## [8.3.0] - 2026-04-25
 
 ### Added
