@@ -9,6 +9,7 @@ from __future__ import annotations
 
 import asyncio
 import sys
+import tempfile
 import types
 from types import SimpleNamespace
 from unittest.mock import AsyncMock, MagicMock, patch
@@ -36,16 +37,21 @@ def _stub_copilot_sdk():
     mod = types.ModuleType("copilot")
 
     class CopilotClient:
+        """Stub for SDK type."""
+
         def __init__(self, config=None):
-            pass
+            """Stub for SDK type."""
 
         async def start(self):
-            pass
+            """Stub for SDK type."""
+            await asyncio.sleep(0)
 
         async def stop(self):
-            pass
+            """Stub for SDK type."""
+            await asyncio.sleep(0)
 
         async def create_session(self, **kwargs):
+            await asyncio.sleep(0)
             return MagicMock()
 
     class PermissionHandler:
@@ -123,7 +129,7 @@ def _make_runner(registry=None, nick="spark-copilot", model="gpt-4.1"):
     """Build a minimal CopilotAgentRunner with telemetry wired up."""
     runner = CopilotAgentRunner(
         model=model,
-        directory="/tmp",
+        directory=tempfile.mkdtemp(prefix="culture-test-copilot-"),
         metrics=registry,
         nick=nick,
     )

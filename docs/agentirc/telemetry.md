@@ -189,11 +189,10 @@ For full configuration details, the per-backend `service.name` table, the
 end-to-end test recipe, and a list of what's deferred, see the operator guide at
 [`docs/agentirc/harness-telemetry.html`](harness-telemetry.html).
 
-## What's not in 8.5.0
+## What's not in 8.6.0
 
-The design spec at `docs/superpowers/specs/2026-04-24-otel-observability-design.md` covers the full three-pillar scope. These pieces shipped in later releases or remain deferred:
+The design spec at `docs/superpowers/specs/2026-04-24-otel-observability-design.md` covers the full three-pillar scope. These pieces remain deferred:
 
-- Harness-side tracing for `claude`/`codex`/`copilot`/`acp` + harness LLM metrics (`culture.harness.llm.*`) — **shipped in 8.6.0**.
 - Bot webhook HTTP instrumentation + bot metrics (`culture.bot.invocations`, `culture.bot.webhook.duration`).
 - Outbound `culture.s2s.messages` (records inbound only — outbound needs a clean verb-extraction site).
 - OTEL Logs export of audit records (best-effort duplicate; JSONL stays source of truth either way).

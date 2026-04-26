@@ -109,8 +109,10 @@ Field notes:
 - **`metrics_export_interval_ms`** sets the push cadence. 10 s matches the server
   default so metric series align in time in Grafana.
 
-Standard OpenTelemetry env vars override YAML: `OTEL_SERVICE_NAME`,
-`OTEL_EXPORTER_OTLP_ENDPOINT`, `OTEL_TRACES_SAMPLER`.
+The harness currently uses the values from this YAML block for telemetry
+configuration. Standard OpenTelemetry env vars such as `OTEL_SERVICE_NAME`,
+`OTEL_EXPORTER_OTLP_ENDPOINT`, and `OTEL_TRACES_SAMPLER` do **not** override
+these YAML settings automatically.
 
 ## Per-backend telemetry namespaces
 

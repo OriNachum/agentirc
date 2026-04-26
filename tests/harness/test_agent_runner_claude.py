@@ -8,6 +8,7 @@ installed.
 from __future__ import annotations
 
 import sys
+import tempfile
 import types
 from types import SimpleNamespace
 from unittest.mock import AsyncMock, MagicMock, patch
@@ -67,8 +68,9 @@ def _stub_claude_sdk():
         pass
 
     async def query(**kwargs):
+        if False:
+            yield  # marks this as an async generator
         return
-        yield  # make it an async generator
 
     mod.AssistantMessage = AssistantMessage
     mod.ResultMessage = ResultMessage
@@ -145,7 +147,7 @@ def _make_runner(registry=None, nick="spark-claude", model="claude-opus-4-6"):
     """Build a minimal AgentRunner with telemetry wired up."""
     return AgentRunner(
         model=model,
-        directory="/tmp",
+        directory=tempfile.mkdtemp(prefix="culture-test-claude-"),
         metrics=registry,
         nick=nick,
     )
@@ -239,8 +241,9 @@ async def test_process_turn_records_error_outcome(metrics_reader, registry):
     runner = _make_runner(registry=registry, nick="spark-claude", model="claude-opus-4-6")
 
     async def _raising_query(**kwargs):
+        if False:
+            yield  # marks this as an async generator
         raise RuntimeError("SDK exploded")
-        yield  # make it an async generator
 
     with patch("culture.clients.claude.agent_runner.query", _raising_query):
         result = await runner._process_turn("hello")

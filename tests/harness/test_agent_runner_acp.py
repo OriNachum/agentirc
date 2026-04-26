@@ -9,6 +9,7 @@ or ``cline`` binary installed.
 from __future__ import annotations
 
 import asyncio
+import tempfile
 from unittest.mock import AsyncMock, patch
 
 import pytest
@@ -78,7 +79,7 @@ def _make_runner(registry=None, nick="spark-acp", model="anthropic/claude-sonnet
     """Build a minimal ACPAgentRunner with telemetry wired up."""
     runner = ACPAgentRunner(
         model=model,
-        directory="/tmp",
+        directory=tempfile.mkdtemp(prefix="culture-test-acp-"),
         metrics=registry,
         nick=nick,
     )

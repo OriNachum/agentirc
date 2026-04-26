@@ -194,20 +194,23 @@ class IRCTransport:
             await self._send_raw(f"TOPIC {channel}")
 
     async def send_raw(self, line: str) -> None:
-        """Send a raw IRC line. Public for commands like HISTORY."""
+        """Send a raw IRC line. Public for commands like HISTORY.
+
+        When a tracer is configured and a span is active, prepends the W3C
+        ``@culture.dev/traceparent=`` IRCv3 tag so all outbound paths — whether
+        called via the internal ``_send_raw`` helper or directly by daemon code
+        — carry trace context consistently.
+        """
+        if self._tracer is not None and not line.startswith("@"):
+            tp = current_traceparent()
+            if tp is not None:
+                line = f"@{TRACEPARENT_TAG}={tp} {line}"
         if self._writer:
             self._writer.write(f"{line}\r\n".encode())
             await self._writer.drain()
 
     async def _send_raw(self, line: str) -> None:
-        # Inject W3C traceparent as an IRCv3 tag prefix when a span is active.
-        # Only inject when we have a tracer configured (fast-path: no work if
-        # self._tracer is None) and there is no tag block already on the line
-        # (defensive guard — prevents double-tagging if a caller pre-tagged).
-        if self._tracer is not None and not line.startswith("@"):
-            tp = current_traceparent()
-            if tp:
-                line = f"@{TRACEPARENT_TAG}={tp} {line}"
+        """Internal send helper; delegates to send_raw (injection lives there)."""
         await self.send_raw(line)
 
     async def _read_loop(self) -> None:

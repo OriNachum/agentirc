@@ -34,11 +34,13 @@ _fake_mb_module = types.ModuleType("culture.clients.BACKEND.message_buffer")
 
 
 class _FakeMessageBuffer:
+    """Stub MessageBuffer for testing — discards all writes."""
+
     def __init__(self, *args, **kwargs):
-        pass
+        """Stub for SDK type."""
 
     def add(self, *args, **kwargs):
-        pass
+        """Stub for SDK type."""
 
 
 _fake_mb_module.MessageBuffer = _FakeMessageBuffer  # type: ignore[attr-defined]
@@ -73,13 +75,13 @@ class _CaptureWriter:
         self.written.append(data)
 
     async def drain(self) -> None:
-        pass
+        """Stub for SDK type."""
 
     def close(self) -> None:
         self._closed = True
 
     async def wait_closed(self) -> None:
-        pass
+        """Stub for SDK type."""
 
     def get_extra_info(self, key: str, default=None):
         return default
@@ -410,3 +412,36 @@ async def test_connect_span_wraps_do_connect(harness_tracing_exporter):
     assert attrs.get("harness.backend") == "test", f"Missing harness.backend; attrs={attrs}"
     assert attrs.get("harness.nick") == "test-agent", f"Missing harness.nick; attrs={attrs}"
     assert attrs.get("harness.server") == "127.0.0.1:6667", f"Missing harness.server; attrs={attrs}"
+
+
+# ---------------------------------------------------------------------------
+# test_send_raw_direct_carries_traceparent
+# Regression test for the send_raw injection bypass bug: callers that use
+# send_raw() directly (not via _send_raw) must also get the traceparent tag.
+# ---------------------------------------------------------------------------
+
+
+@pytest.mark.asyncio
+async def test_send_raw_direct_carries_traceparent(harness_tracing_exporter):
+    """send_raw() called directly must inject traceparent when a span is active.
+
+    This is the regression test for the bug where injection lived only in
+    _send_raw() — callers that bypassed it (e.g. daemon HISTORY commands)
+    silently lost trace context.
+    """
+    exporter, provider = harness_tracing_exporter
+    tracer = provider.get_tracer("test")
+    transport = _make_transport(tracer=tracer)
+    _reader, writer = _inject_rw(transport)
+
+    with tracer.start_as_current_span("outer-span"):
+        # Call send_raw directly — NOT via _send_raw or send_privmsg.
+        await transport.send_raw("PRIVMSG #x :hi")
+
+    lines = _captured_lines(writer)
+    assert lines, "expected at least one line written"
+    line = lines[0]
+    assert line.startswith(
+        "@culture.dev/traceparent=00-"
+    ), f"send_raw() direct call must inject traceparent; got: {line!r}"
+    assert "PRIVMSG #x :hi" in line, f"Expected PRIVMSG body preserved; got: {line!r}"

@@ -8,6 +8,7 @@ binary installed.
 from __future__ import annotations
 
 import asyncio
+import tempfile
 from unittest.mock import AsyncMock, patch
 
 import pytest
@@ -77,7 +78,7 @@ def _make_runner(registry=None, nick="spark-codex", model="gpt-5.4"):
     """Build a minimal CodexAgentRunner with telemetry wired up."""
     runner = CodexAgentRunner(
         model=model,
-        directory="/tmp",
+        directory=tempfile.mkdtemp(prefix="culture-test-codex-"),
         metrics=registry,
         nick=nick,
     )
@@ -124,6 +125,7 @@ async def test_execute_single_turn_records_success(metrics_reader, tracing_expor
 
     async def _fake_send_request(method, params):
         # Simulate the turn/completed notification setting the event
+        await asyncio.sleep(0)
         runner._turn_done.set()
         return {"result": {}}
 
@@ -163,6 +165,7 @@ async def test_execute_single_turn_records_timeout(metrics_reader, registry):
     async def _fake_send_request(method, params):
         # Return without setting _turn_done — this will cause the 300s timeout.
         # We patch asyncio.timeout to make it expire immediately.
+        await asyncio.sleep(0)
         return {"result": {}}
 
     # Create a context manager that raises TimeoutError immediately
@@ -171,7 +174,7 @@ async def test_execute_single_turn_records_timeout(metrics_reader, registry):
             raise asyncio.TimeoutError()
 
         async def __aexit__(self, *args):
-            pass
+            """Stub for SDK type."""
 
     with patch.object(runner, "_send_request", side_effect=_fake_send_request):
         with patch(
@@ -214,6 +217,7 @@ async def test_execute_single_turn_no_metrics_no_recording(metrics_reader):
     runner = _make_runner(registry=None, nick="spark-codex")
 
     async def _fake_send_request(method, params):
+        await asyncio.sleep(0)
         runner._turn_done.set()
         return {"result": {}}
 
