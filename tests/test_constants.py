@@ -48,6 +48,25 @@ def test_creates_fallback_dir_with_user_only_permissions(monkeypatch, tmp_path):
     assert mode == 0o700, f"expected mode 0700, got {oct(mode)}"
 
 
+def test_raises_when_home_unresolvable(monkeypatch):
+    """Both XDG_RUNTIME_DIR and HOME unset → RuntimeError, not a literal '~' dir.
+
+    Qodo flagged that the pre-fix resolver would silently `mkdir` a literal
+    `~/.culture/run` in CWD if `os.path.expanduser('~')` could not resolve.
+    Now that 9 daemons/skills depend on this resolver, fail loud instead.
+    """
+    monkeypatch.delenv("XDG_RUNTIME_DIR", raising=False)
+    monkeypatch.delenv("HOME", raising=False)
+    # On Linux, expanduser may still consult /etc/passwd via pwd. Force
+    # the fallback path by also clearing the user's pwd entry lookup.
+    monkeypatch.setattr(os.path, "expanduser", lambda p: p)
+
+    import pytest
+
+    with pytest.raises(RuntimeError, match="cannot resolve a home directory"):
+        culture_runtime_dir()
+
+
 def test_enforces_permissions_on_existing_dir(monkeypatch, tmp_path):
     """Even if the fallback dir already exists with wrong perms, it's tightened.
 

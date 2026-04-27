@@ -15,6 +15,8 @@ the parametric test below catches it before merge.
 
 from __future__ import annotations
 
+import os
+
 import pytest
 
 from culture.cli.shared.constants import culture_runtime_dir
@@ -43,7 +45,7 @@ DAEMON_FACTORIES = [
         "claude",
         lambda: ClaudeDaemon(
             ClaudeDaemonConfig(),
-            ClaudeAgentConfig(nick=NICK, directory="/tmp", channels=[]),
+            ClaudeAgentConfig(nick=NICK, directory="/nonexistent", channels=[]),
             socket_dir=None,
             skip_claude=True,
         ),
@@ -52,7 +54,7 @@ DAEMON_FACTORIES = [
         "codex",
         lambda: CodexDaemon(
             CodexDaemonConfig(),
-            CodexAgentConfig(nick=NICK, directory="/tmp", channels=[]),
+            CodexAgentConfig(nick=NICK, directory="/nonexistent", channels=[]),
             socket_dir=None,
             skip_codex=True,
         ),
@@ -61,7 +63,7 @@ DAEMON_FACTORIES = [
         "copilot",
         lambda: CopilotDaemon(
             CopilotDaemonConfig(),
-            CopilotAgentConfig(nick=NICK, directory="/tmp", channels=[]),
+            CopilotAgentConfig(nick=NICK, directory="/nonexistent", channels=[]),
             socket_dir=None,
             skip_copilot=True,
         ),
@@ -70,7 +72,7 @@ DAEMON_FACTORIES = [
         "acp",
         lambda: ACPDaemon(
             ACPDaemonConfig(),
-            ACPAgentConfig(nick=NICK, directory="/tmp", channels=[]),
+            ACPAgentConfig(nick=NICK, directory="/nonexistent", channels=[]),
             socket_dir=None,
             skip_agent=True,
         ),
@@ -94,11 +96,15 @@ def test_all_resolvers_agree_with_cli(monkeypatch, tmp_path, xdg_set):
       - xdg-unset-macos: macOS default — env var is missing, so the resolver
         must fall back to ~/.culture/run/ (the CLI's choice). Issue #302
         regression: any site that falls back to /tmp/ instead breaks here.
+
+    HOME is sandboxed to tmp_path in the xdg-unset case so the resolver
+    cannot mkdir/chmod the test runner's real ~/.culture/run.
     """
     if xdg_set:
         monkeypatch.setenv("XDG_RUNTIME_DIR", str(tmp_path))
     else:
         monkeypatch.delenv("XDG_RUNTIME_DIR", raising=False)
+        monkeypatch.setenv("HOME", str(tmp_path))
 
     cli_path = agent_socket_path(NICK)
 
@@ -122,6 +128,17 @@ def test_all_resolvers_agree_with_cli(monkeypatch, tmp_path, xdg_set):
             f"diverges from CLI agent_socket_path={cli_path!r}"
         )
 
+    # The overview collector and console status reader use
+    # culture_runtime_dir() directly (not via agent_socket_path) — they
+    # glob culture-*.sock for all nicks. Pin that they see the same
+    # directory the CLI dials per nick.
+    expected_dir = os.path.dirname(cli_path)
+    assert culture_runtime_dir() == expected_dir, (
+        f"culture_runtime_dir()={culture_runtime_dir()!r} diverges from "
+        f"agent_socket_path()'s parent={expected_dir!r}; the overview "
+        f"collector and console status reader would scan the wrong dir."
+    )
+
 
 def test_culture_runtime_dir_used_by_resolvers(monkeypatch, tmp_path):
     """Sanity check: agent_socket_path is built on culture_runtime_dir().
@@ -131,6 +148,6 @@ def test_culture_runtime_dir_used_by_resolvers(monkeypatch, tmp_path):
     so pin the relationship explicitly.
     """
     monkeypatch.setenv("XDG_RUNTIME_DIR", str(tmp_path))
-    expected = str(tmp_path) + f"/culture-{NICK}.sock"
+    expected = str(tmp_path / f"culture-{NICK}.sock")
     assert agent_socket_path(NICK) == expected
     assert culture_runtime_dir() == str(tmp_path)

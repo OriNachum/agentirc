@@ -12,6 +12,7 @@ from culture.cli.channel import (
     _require_ipc,
     _try_ipc,
     _valid_nick,
+    _warn_observer_fallback,
     dispatch,
     register,
 )
@@ -82,16 +83,15 @@ class TestMessageIpcRouting:
         monkeypatch.setenv("XDG_RUNTIME_DIR", sock_dir)
         asyncio.run(_run())
 
-    def test_message_falls_back_when_no_daemon(self, monkeypatch, capsys):
+    def test_message_falls_back_when_no_daemon(self, monkeypatch):
         """When CULTURE_NICK is set but daemon unreachable, _try_ipc returns None."""
         monkeypatch.setenv("CULTURE_NICK", "spark-claude")
         monkeypatch.setenv("XDG_RUNTIME_DIR", tempfile.mkdtemp())
 
-        # _try_ipc should return None when socket doesn't exist
+        # _try_ipc itself stays silent — the warning is emitted by the
+        # observer-fallback caller (see TestObserverFallbackWarning).
         result = _try_ipc("irc_send", channel="#general", message="hello")
         assert result is None
-        # Issue #302: a stderr warning must accompany the silent fallback.
-        capsys.readouterr()  # consume so it doesn't pollute the next test
 
     def test_message_uses_observer_when_no_nick(self, monkeypatch):
         """When CULTURE_NICK is not set, _try_ipc returns None."""
@@ -100,97 +100,79 @@ class TestMessageIpcRouting:
         assert result is None
 
 
-class TestSilentFallbackWarning:
-    """Issue #302: warn loudly when CULTURE_NICK is set but IPC failed.
+class TestObserverFallbackWarning:
+    """Issue #302: the three observer-fallback callers must warn loudly.
 
     Before the fix, a daemon/CLI socket-path mismatch on macOS caused
     `culture channel message` to silently fall back to an anonymous peek
-    nick. The CLI printed `Sent to #general` either way, so the bug hid
-    for two releases. The warning must always (a) name the nick, (b)
-    point to the GitHub issue tracker for filing a regression.
+    connection. The CLI printed `Sent to #general` either way, so the
+    bug hid for two releases. The warning must (a) name the nick that
+    was attempted, (b) name the operation, and (c) point at the GitHub
+    issue tracker so the next reproducer takes seconds to file.
+
+    The warning lives in `_warn_observer_fallback`, called only by
+    `_cmd_message`, `_cmd_list`, and `_cmd_read`. `_topic_read` and the
+    `_require_ipc` commands exit on failure instead, so no spurious
+    "falling back" notice contradicts their actual error.
     """
 
-    def test_warns_when_daemon_unreachable(self, monkeypatch, capsys):
-        """Unreachable daemon → stderr warning containing nick + issues URL."""
+    def test_warns_when_nick_set_and_daemon_unreachable(self, monkeypatch, capsys):
+        """CULTURE_NICK set + IPC down → stderr warning naming op + nick + issues URL."""
         monkeypatch.setenv("CULTURE_NICK", "spark-claude")
         monkeypatch.setenv("XDG_RUNTIME_DIR", tempfile.mkdtemp())
 
-        result = _try_ipc("irc_send", channel="#general", message="hello")
+        _warn_observer_fallback("channel message")
 
-        assert result is None
         err = capsys.readouterr().err
         assert "spark-claude" in err
-        assert "unreachable" in err
+        assert "channel message" in err
+        assert "Falling back to observer" in err
         assert "https://github.com/agentculture/culture/issues" in err
 
-    def test_warns_when_daemon_returns_not_ok(self, monkeypatch, capsys):
-        """Daemon answered with ok=False → warning still fires (silent fallback bug class).
-
-        Uses a stdlib socket server in a background thread so _try_ipc's own
-        asyncio.run() does not nest inside an outer event loop.
-        """
-        import socket
-        import threading
-
-        sock_dir = tempfile.mkdtemp()
-        sock_path = os.path.join(sock_dir, "culture-spark-claude.sock")
-
-        srv = socket.socket(socket.AF_UNIX, socket.SOCK_STREAM)
-        srv.bind(sock_path)
-        srv.listen(1)
-
-        def _serve_one():
-            conn, _ = srv.accept()
-            try:
-                buf = b""
-                while not buf.endswith(b"\n"):
-                    chunk = conn.recv(4096)
-                    if not chunk:
-                        break
-                    buf += chunk
-                req = json.loads(buf)
-                resp = make_response(req["id"], ok=False, error="not joined")
-                conn.sendall(encode_message(resp))
-            finally:
-                conn.close()
-
-        thread = threading.Thread(target=_serve_one, daemon=True)
-        thread.start()
-
+    def test_warning_text_is_operation_specific(self, monkeypatch, capsys):
+        """Each caller passes its own operation name; helper renders it verbatim."""
         monkeypatch.setenv("CULTURE_NICK", "spark-claude")
-        monkeypatch.setenv("XDG_RUNTIME_DIR", sock_dir)
-        try:
-            result = _try_ipc("irc_send", channel="#general", message="hi")
-        finally:
-            thread.join(timeout=2.0)
-            srv.close()
-            os.unlink(sock_path)
+        monkeypatch.setenv("XDG_RUNTIME_DIR", tempfile.mkdtemp())
 
-        assert result is not None  # response is preserved for callers
-        assert result["ok"] is False
+        _warn_observer_fallback("channel list")
         err = capsys.readouterr().err
-        assert "spark-claude" in err
-        assert "rejected" in err
-        assert "not joined" in err
-        assert "https://github.com/agentculture/culture/issues" in err
+        assert "channel list" in err
+        assert "channel message" not in err  # no leakage from sibling callers
 
     def test_no_warning_when_nick_unset(self, monkeypatch, capsys):
-        """Human use without CULTURE_NICK is the legitimate peek path — no warning."""
+        """Human use without CULTURE_NICK is the legitimate observer path — no warning."""
         monkeypatch.delenv("CULTURE_NICK", raising=False)
 
-        result = _try_ipc("irc_send", channel="#general", message="hello")
+        _warn_observer_fallback("channel message")
 
-        assert result is None
         assert capsys.readouterr().err == ""
 
     def test_no_warning_when_nick_invalid(self, monkeypatch, capsys):
         """Invalid nick falls into the same human-use bucket — no warning."""
         monkeypatch.setenv("CULTURE_NICK", "nodash")
 
-        result = _try_ipc("irc_send", channel="#general", message="hello")
+        _warn_observer_fallback("channel message")
 
-        assert result is None
         assert capsys.readouterr().err == ""
+
+    def test_topic_read_does_not_warn(self, monkeypatch, capsys):
+        """_topic_read uses _try_ipc but exits on failure — no fallback, no warning.
+
+        Regression guard against the Qodo/Copilot review on PR #304: the
+        previous design auto-warned inside `_try_ipc` and printed a
+        misleading 'falling back' notice for `topic` (which actually exits).
+        """
+        from culture.cli.channel import _topic_read
+
+        monkeypatch.setenv("CULTURE_NICK", "spark-claude")
+        monkeypatch.setenv("XDG_RUNTIME_DIR", tempfile.mkdtemp())
+
+        with pytest.raises(SystemExit):
+            _topic_read("#general")
+
+        err = capsys.readouterr().err
+        assert "Falling back" not in err
+        assert "topic query requires" in err
 
 
 class TestNickValidation:
